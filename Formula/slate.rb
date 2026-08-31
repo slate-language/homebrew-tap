@@ -1,7 +1,7 @@
 class Slate < Formula
   desc "Small indentation-structured, garbage-collected language, written in sysl"
   homepage "https://github.com/slate-language/slate"
-  version "0.0.1"
+  version "0.0.2"
   license "ISC"
 
   # macOS on Apple silicon is the only build there is. sysl does not cross-compile,
@@ -12,7 +12,7 @@ class Slate < Formula
   on_macos do
     on_arm do
       url "https://github.com/slate-language/slate/releases/download/v#{version}/slate-#{version}-darwin-arm64.tar.gz"
-      sha256 "6485bb9a62c8fa0ecfd69580d408f63b978f68f67c914601e27b3f17754d265c"
+      sha256 "a849755b6ba32dde85c0cbd5c778ad62c98a818eb3b12a6d01a0fe02232bdb2f"
     end
   end
 
@@ -85,5 +85,21 @@ class Slate < Formula
     (testpath/"hello.sl").write "print(6 * 7)\n"
 
     assert_match '$.arith("*", 6n, 7n)', shell_output("#{bin}/slate js #{testpath}/hello.sl")
+
+    # `slate:dom`, which is what 0.0.2 is for and the one thing above that could be
+    # missing while everything else passed -- a module lives in three lists, and one
+    # of them not knowing about it is a binary that compiles a page into nothing.
+    #
+    # The REFUSAL is what is asserted, because there is no document in a brew test
+    # and the sentence is the module working: it resolves, the import is accepted,
+    # the name is declared, and only the call says there is no page here.
+    (testpath/"page.sl").write <<~SLATE
+      import { byId } from slate:dom
+
+      byId("app")
+    SLATE
+
+    assert_match "needs a document, and the interpreter has none",
+                 shell_output("#{bin}/slate #{testpath}/page.sl", 1)
   end
 end
