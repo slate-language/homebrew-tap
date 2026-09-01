@@ -1,7 +1,7 @@
 class Slate < Formula
   desc "Small indentation-structured, garbage-collected language, written in sysl"
   homepage "https://github.com/slate-language/slate"
-  version "0.0.3"
+  version "0.0.4"
   license "ISC"
 
   # macOS on Apple silicon is the only build there is. sysl does not cross-compile,
@@ -12,7 +12,7 @@ class Slate < Formula
   on_macos do
     on_arm do
       url "https://github.com/slate-language/slate/releases/download/v#{version}/slate-#{version}-darwin-arm64.tar.gz"
-      sha256 "b99430877e126a0e84c8c4abfb4653ba6ed88ab2728ec9c7056fed1ac6608261"
+      sha256 "ecdd5d1e95f07a760a35cf8a67a887b89480c70414d49aafee5474c28760d8df"
     end
   end
 
@@ -122,5 +122,25 @@ class Slate < Formula
 
     assert_match "nothing this project depends on is called `lath`",
                  shell_output("#{bin}/slate #{testpath}/sub.sl", 1)
+
+    # `slate:crypto`, which is what 0.0.4 is for. A PUBLISHED vector rather than a
+    # round trip: a digest compared against what the binary itself answered would
+    # pass on a broken build just as happily, and the point of a hash is that
+    # everybody else's agrees.
+    #
+    # `randomBytes` is asserted separately because it is the half that cannot be
+    # written in slate at any price -- it reads the kernel, so a build where that
+    # call is missing fails here and nowhere else.
+    (testpath/"digest.sl").write <<~SLATE
+      import { sha256, randomBytes } from slate:crypto
+
+      hex(bs) = bs.map(b -> "0123456789abcdef"[b >> 4] + "0123456789abcdef"[b & 15]).join("")
+
+      print(hex(sha256("abc")))
+      print(len(randomBytes(16)))
+    SLATE
+
+    assert_equal "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad\n16\n",
+                 shell_output("#{bin}/slate #{testpath}/digest.sl")
   end
 end
