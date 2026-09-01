@@ -30,11 +30,21 @@ class Slate < Formula
   depends_on "pcre2"     # `slate:regex`, which is Perl's dialect rather than POSIX's
 
   def install
-    # The tarball is already a prefix -- bin/slate and nothing else -- so the tree
-    # moves into the keg whole and brew links the binary itself. slate needs no
-    # library beside it: the standard modules are compiled into the executable,
-    # which is what makes this shorter than sysl's own formula.
-    prefix.install Dir["*"]
+    # `bin.install` NAMING THE BINARY, never `prefix.install Dir["*"]` -- brew strips
+    # a single top-level directory before `install` runs, so what `Dir["*"]` sees
+    # depends on how the tarball happened to be rolled rather than on anything the
+    # formula says.
+    #
+    # 0.0.1 shipped `slate-0.0.1-darwin-arm64/bin/slate`: the version directory was
+    # stripped, `Dir["*"]` was `bin`, and the keg came out right by accident. 0.0.2
+    # shipped `bin/slate`: `bin` itself was stripped, `Dir["*"]` was `slate`, and the
+    # binary landed at `prefix/slate`, which brew links nothing from. `brew upgrade`
+    # reported success and `slate` was command-not-found.
+    #
+    # The glob takes either layout, so a release cannot break the install by changing
+    # how it tars. slate needs no library beside the executable -- the standard
+    # modules are compiled in, which is what makes this shorter than sysl's own.
+    bin.install Dir["slate", "bin/slate"].first
   end
 
   test do
