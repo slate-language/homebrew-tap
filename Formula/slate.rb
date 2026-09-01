@@ -1,7 +1,7 @@
 class Slate < Formula
   desc "Small indentation-structured, garbage-collected language, written in sysl"
   homepage "https://github.com/slate-language/slate"
-  version "0.0.5"
+  version "0.0.6"
   license "ISC"
 
   # macOS on Apple silicon is the only build there is. sysl does not cross-compile,
@@ -12,7 +12,7 @@ class Slate < Formula
   on_macos do
     on_arm do
       url "https://github.com/slate-language/slate/releases/download/v#{version}/slate-#{version}-darwin-arm64.tar.gz"
-      sha256 "66cd08c4ccde39aa5f96c2a24c99250383085400b587191eb580fb81f4072237"
+      sha256 "3f37a4de3020febb909b9167c5abe53cc50cfbe92191a1c35485fc9d32e45cac"
     end
   end
 
@@ -196,5 +196,29 @@ class Slate < Formula
 
     assert_equal "secured true\necho: hello\n",
                  shell_output("#{bin}/slate #{testpath}/tls.sl")
+
+    # `md5`, which is what 0.0.6 is for -- the digest PostgreSQL's older login asks
+    # for, and which `slate-language/pg` wrote out in slate until this release.
+    #
+    # A published vector again, and one either side of the 64-byte block boundary:
+    # 55 bytes pads inside one block and 56 needs a second, so an implementation
+    # that got the padding wrong answers the short vectors correctly and nothing
+    # else. `pbkdf2` is asserted beside it because this release stopped computing
+    # it here and asks the standard library instead -- RFC 6070's first case, so a
+    # derivation that silently changed would be caught rather than trusted.
+    (testpath/"md5.sl").write <<~SLATE
+      import { md5, pbkdf2 } from slate:crypto
+
+      hex(bs) = bs.map(b -> "0123456789abcdef"[b >> 4] + "0123456789abcdef"[b & 15]).join("")
+
+      print(hex(md5("abc")))
+      print(hex(md5("12345678901234567890123456789012345678901234567890123456")))
+      print(hex(pbkdf2("SHA-1", "password", "salt", 1, 20)))
+    SLATE
+
+    assert_equal "900150983cd24fb0d6963f7d28e17f72\n" \
+                 "49f193adce178490e34d1b3a4ec0064c\n" \
+                 "0c60c80f961f0e71f3a9b524af6012062fe037a6\n",
+                 shell_output("#{bin}/slate #{testpath}/md5.sl")
   end
 end
