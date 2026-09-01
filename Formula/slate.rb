@@ -1,7 +1,7 @@
 class Slate < Formula
   desc "Small indentation-structured, garbage-collected language, written in sysl"
   homepage "https://github.com/slate-language/slate"
-  version "0.0.4"
+  version "0.0.5"
   license "ISC"
 
   # macOS on Apple silicon is the only build there is. sysl does not cross-compile,
@@ -12,7 +12,7 @@ class Slate < Formula
   on_macos do
     on_arm do
       url "https://github.com/slate-language/slate/releases/download/v#{version}/slate-#{version}-darwin-arm64.tar.gz"
-      sha256 "ecdd5d1e95f07a760a35cf8a67a887b89480c70414d49aafee5474c28760d8df"
+      sha256 "66cd08c4ccde39aa5f96c2a24c99250383085400b587191eb580fb81f4072237"
     end
   end
 
@@ -142,5 +142,59 @@ class Slate < Formula
 
     assert_equal "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad\n16\n",
                  shell_output("#{bin}/slate #{testpath}/digest.sl")
+
+    # `startTls` and a `connect` that takes a NAME, which is what 0.0.5 is for -- and
+    # both halves of one exchange, since neither is worth much alone: a client that
+    # can upgrade but must dial an address has nothing to check a certificate against.
+    #
+    # A real handshake over a real loopback socket, against a listener this same
+    # binary is running, on a certificate written here rather than committed -- a
+    # formula test cannot reach the network and should not want to. The certificate
+    # names `localhost`, which is what `startTls` is then given and what the whole
+    # test turns on: `trust` adds it to the machine's store, and the name is verified
+    # against it.
+    system Formula["openssl@3"].opt_bin/"openssl", "req",
+           "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "2",
+           "-subj", "/CN=localhost", "-addext", "subjectAltName=DNS:localhost",
+           "-keyout", testpath/"key.pem", "-out", testpath/"cert.pem"
+
+    (testpath/"tls.sl").write <<~SLATE
+      import { listen, connect, onData, send, close, localPort, startTls } from slate:net
+      import { readFileSync } from slate:fs
+
+      val cert = readFileSync("#{testpath}/cert.pem").value
+      val key = readFileSync("#{testpath}/key.pem").value
+
+      serve(conn)
+          heard(chunk)
+              if chunk == null
+                  close(conn)
+              else
+                  send(conn, "echo: " + chunk)
+
+          onData(conn, heard)
+
+      val server = listen({ port: 0, cert: cert, key: key }, serve)
+
+      async main()
+          val c = (await connect("localhost", localPort(server))).value
+
+          reply(chunk)
+              print(chunk)
+              close(c)
+              close(server)
+
+          onData(c, reply)
+
+          val up = await startTls(c, { host: "localhost", trust: cert })
+
+          print("secured " + string(up.ok))
+          await send(c, "hello")
+
+      main()
+    SLATE
+
+    assert_equal "secured true\necho: hello\n",
+                 shell_output("#{bin}/slate #{testpath}/tls.sl")
   end
 end
