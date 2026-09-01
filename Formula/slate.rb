@@ -1,7 +1,7 @@
 class Slate < Formula
   desc "Small indentation-structured, garbage-collected language, written in sysl"
   homepage "https://github.com/slate-language/slate"
-  version "0.0.2"
+  version "0.0.3"
   license "ISC"
 
   # macOS on Apple silicon is the only build there is. sysl does not cross-compile,
@@ -12,7 +12,7 @@ class Slate < Formula
   on_macos do
     on_arm do
       url "https://github.com/slate-language/slate/releases/download/v#{version}/slate-#{version}-darwin-arm64.tar.gz"
-      sha256 "a849755b6ba32dde85c0cbd5c778ad62c98a818eb3b12a6d01a0fe02232bdb2f"
+      sha256 "b99430877e126a0e84c8c4abfb4653ba6ed88ab2728ec9c7056fed1ac6608261"
     end
   end
 
@@ -111,5 +111,16 @@ class Slate < Formula
 
     assert_match "needs a document, and the interpreter has none",
                  shell_output("#{bin}/slate #{testpath}/page.sl", 1)
+
+    # Subpath imports, which is what 0.0.3 is for. A `/` in an unquoted specifier used to be a
+    # parse error at the slash; what proves the binary has the feature is that it now parses,
+    # resolves as a PACKAGE, and complains about the package rather than about the punctuation.
+    #
+    # The refusal is asserted rather than a working import, because a working one needs a fetch --
+    # and a formula test that reaches the network fails for reasons that are not the binary's.
+    (testpath/"sub.sl").write "import { domHost } from lath/dom\n"
+
+    assert_match "nothing this project depends on is called `lath`",
+                 shell_output("#{bin}/slate #{testpath}/sub.sl", 1)
   end
 end
