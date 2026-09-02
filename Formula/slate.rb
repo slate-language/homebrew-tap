@@ -1,7 +1,7 @@
 class Slate < Formula
   desc "Small indentation-structured, garbage-collected language, written in sysl"
   homepage "https://github.com/slate-language/slate"
-  version "0.0.16"
+  version "0.0.17"
   license "ISC"
 
   # macOS on Apple silicon is the only build there is. sysl does not cross-compile,
@@ -12,7 +12,7 @@ class Slate < Formula
   on_macos do
     on_arm do
       url "https://github.com/slate-language/slate/releases/download/v#{version}/slate-#{version}-darwin-arm64.tar.gz"
-      sha256 "08256e33d1aa9f7c2f9c5ecba509d65ea5d7eb717c2d1b6b6bd476323b7c27d1"
+      sha256 "73a7ebfc4b21068a738f4ede520bcaa38fc0a051469ce55f49acb0e282867a54"
     end
   end
 
@@ -541,5 +541,43 @@ class Slate < Formula
 
     assert_match "`g` takes integer here, and this is string",
                  shell_output("#{bin}/slate #{testpath}/follows.sl", 1)
+
+    # What 0.0.17 is for: the eight methods an array was missing, and a chain of them.
+    #
+    # **Asserted as a CHAIN**, because that is the shape a method is written in and the one a table
+    # entry alone would not prove: each link hands its answer to the next, so a method registered
+    # under the wrong kind or answering the wrong thing fails here rather than somewhere quieter.
+    #
+    # `unshift` answering nothing is asserted on its own line, since it is where slate parts from
+    # JavaScript -- there it hands back the new length, which makes the call look like it produced
+    # something.
+    (testpath/"methods.sl").write <<~SLATE
+      val xs = [4, 1, 3, 2]
+
+      print(xs.sorted().slice(1, 3).flatMap(n -> [n, n]).at(-1))
+      print(xs.findLast(n -> n < 3), xs.findLastIndex(n -> n < 3), xs.at(-1))
+
+      var ys = [1, 2]
+
+      print(ys.unshift(0), ys.shift(), ys)
+      ys.forEach(n -> print("saw", n))
+    SLATE
+
+    assert_equal "3\n2 3 2\nnull 0 [1, 2]\nsaw 1\nsaw 2\n",
+                 shell_output("#{bin}/slate #{testpath}/methods.sl")
+
+    # And the other half of 0.0.17: an element type survives a call, in BOTH spellings. The method
+    # form is the one that said nothing before -- `xs.map(f)` is `map(xs, f)` to the interpreter and
+    # was a field read off an array to the checker.
+    (testpath/"elements.sl").write <<~SLATE
+      f(xs: array of string) = len(xs)
+
+      h(ns: array of integer) = f(ns.filter(n -> n > 1))
+
+      h([1, 2])
+    SLATE
+
+    assert_match "`f` takes array of string here, and this is array of integer",
+                 shell_output("#{bin}/slate #{testpath}/elements.sl", 1)
   end
 end
