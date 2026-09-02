@@ -1,7 +1,7 @@
 class Slate < Formula
   desc "Small indentation-structured, garbage-collected language, written in sysl"
   homepage "https://github.com/slate-language/slate"
-  version "0.0.13"
+  version "0.0.14"
   license "ISC"
 
   # macOS on Apple silicon is the only build there is. sysl does not cross-compile,
@@ -12,11 +12,11 @@ class Slate < Formula
   on_macos do
     on_arm do
       url "https://github.com/slate-language/slate/releases/download/v#{version}/slate-#{version}-darwin-arm64.tar.gz"
-      sha256 "3e9d6a7cfbf1f50f02be04bd4ee353d29b55ce71029380ed2f630cbd0779b261"
+      sha256 "a699a5da7869c14973e131cd02ddc6a3d0530e178bed2316bcc3fc08dca4ea56"
     end
   end
 
-  # The six libraries the binary actually links, and the census is `otool -L slate`
+  # The five libraries the binary actually links, and the census is `otool -L slate`
   # rather than the dependency list in package.hocon -- miniz, monocypher, llhttp and
   # QOI are vendored C and appear in neither the link line nor here.
   #
@@ -28,7 +28,6 @@ class Slate < Formula
   depends_on "libuv"     # the event loop everything asynchronous is built on
   depends_on "openssl@3" # TLS, for `serve` over https and for `fetch`
   depends_on "pcre2"     # `slate:regex`, which is Perl's dialect rather than POSIX's
-  depends_on "quickjs-ng" # the engine `slate test --js` runs a suite in, new at 0.0.12
 
   def install
     # `bin.install` NAMING THE BINARY, never `prefix.install Dir["*"]` -- brew strips
@@ -385,15 +384,11 @@ class Slate < Formula
 
     # What 0.0.12 is for: ONE suite, run by both back ends, out of this one binary.
     #
-    # `--js` compiles the file and runs it in quickjs-ng, which is linked in -- so a
-    # formula missing `depends_on "quickjs-ng"` installs cleanly and fails here with a
-    # dyld error, which is exactly what this assertion is for. The two runs are
-    # compared to each other rather than to a fixed string, because what the release
-    # claims is that they AGREE.
-    #
-    # The four assertions in it are the divergences this release closed, one apiece:
+    # The four assertions in it are the divergences that release closed, one apiece:
     # ASCII case, a mutator answering nothing, `fromBytes` answering a result, and a
-    # real surviving a JSON round trip as a real.
+    # real surviving a JSON round trip as a real. They are asserted against the
+    # INTERPRETER here; the `--js` half moved down to 0.0.14's assertion, which needs
+    # node and says so when there is none.
     (testpath/"both.sl").write <<~SLATE
       @test
       case_is_ascii_only() = assertEq(upper("h\u{e9}llo"), "H\u{e9}LLO")
@@ -415,10 +410,7 @@ class Slate < Formula
           assertEq(await 7, 7)
     SLATE
 
-    here = shell_output("#{bin}/slate test #{testpath}/both.sl")
-
-    assert_match "4 passed", here
-    assert_equal here, shell_output("#{bin}/slate test --js #{testpath}/both.sl")
+    assert_match "4 passed", shell_output("#{bin}/slate test #{testpath}/both.sl")
 
     # And the version the binary reports, which is the first thing anybody holding one
     # asks. It is written by hand in two places, so a release that bumped one of them
@@ -462,6 +454,20 @@ class Slate < Formula
     SLATE
 
     assert_match "2 passed", shell_output("#{bin}/slate test #{testpath}/timed.sl")
-    assert_match "2 passed", shell_output("#{bin}/slate test --js #{testpath}/timed.sl")
+
+    # What 0.0.14 is for: `slate test --js` runs on NODE, and slate links no JavaScript
+    # engine any more. quickjs was a dependency of this formula for exactly one release
+    # and getting rid of it is most of the point -- so this asserts the feature still
+    # works with nothing but node, which is where slate programs actually run.
+    #
+    # `node` may not be on a build machine, so its absence is reported as a SKIP of this
+    # one assertion rather than a failure of the formula: what a brew test is for is the
+    # binary, and slate's own suite is where the back ends are held together.
+    if which("node")
+      assert_match "2 passed", shell_output("#{bin}/slate test --js #{testpath}/timed.sl")
+    else
+      assert_match "node could not be started",
+                   shell_output("#{bin}/slate test --js #{testpath}/timed.sl", 1)
+    end
   end
 end
