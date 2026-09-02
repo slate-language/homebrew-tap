@@ -1,7 +1,7 @@
 class Slate < Formula
   desc "Small indentation-structured, garbage-collected language, written in sysl"
   homepage "https://github.com/slate-language/slate"
-  version "0.0.8"
+  version "0.0.9"
   license "ISC"
 
   # macOS on Apple silicon is the only build there is. sysl does not cross-compile,
@@ -12,7 +12,7 @@ class Slate < Formula
   on_macos do
     on_arm do
       url "https://github.com/slate-language/slate/releases/download/v#{version}/slate-#{version}-darwin-arm64.tar.gz"
-      sha256 "3a334920dfded3542d9b4a0d7cebf64c2289becc84928265bacb65a35eb2df05"
+      sha256 "07da9497130aec34545a4ec50b95e0987f10092382a51c491fcbd20e2ebed602"
     end
   end
 
@@ -286,5 +286,42 @@ class Slate < Formula
       1 6
       true false
     WIDE
+
+    # The four modules written in slate carry ANNOTATIONS and export the shapes they
+    # hand out, which is what 0.0.9 is for -- together with the four checker bugs
+    # that writing them found.
+    #
+    # **What is asserted is that this program COMPILES AT ALL.** Every line of it was
+    # refused by 0.0.8: a type declaration could not name `Request` (or any other
+    # imported type), `{ value?: any }` demanded the key anyway, and `at` stayed
+    # `integer | null` past the guard that returned on it. Refusing a program that
+    # runs is the one mistake that pass may not make, so the compile is the test.
+    #
+    # The printed answers are here so that a binary which merely stopped complaining,
+    # without narrowing anything, would fail too.
+    (testpath/"checked.sl").write <<~SLATE
+      import { Request } from slate:http
+
+      type Handled = { req: Request, who: string }
+      type Reply = { ok: boolean, value?: any, error?: string }
+
+      said(r: Reply) = if r.ok then string(r.value) else r.error
+
+      pick(xs: array of string, i: integer) -> string = xs[i]
+
+      find(xs: array of string, want: string) -> string
+          val at = indexOf(xs, want)
+
+          if at == null then return "none"
+
+          pick(xs, at)
+
+      print(Handled.name(), Request is shape)
+      print(said({ ok: true, value: 41 }), said({ ok: false, error: "no" }))
+      print(find(["a", "b"], "b"), find(["a"], "z"))
+    SLATE
+
+    assert_equal "Handled true\n41 no\nb none\n",
+                 shell_output("#{bin}/slate #{testpath}/checked.sl")
   end
 end
