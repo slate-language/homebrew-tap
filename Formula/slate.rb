@@ -1,7 +1,7 @@
 class Slate < Formula
   desc "Small indentation-structured, garbage-collected language, written in sysl"
   homepage "https://github.com/slate-language/slate"
-  version "0.0.10"
+  version "0.0.11"
   license "ISC"
 
   # macOS on Apple silicon is the only build there is. sysl does not cross-compile,
@@ -12,7 +12,7 @@ class Slate < Formula
   on_macos do
     on_arm do
       url "https://github.com/slate-language/slate/releases/download/v#{version}/slate-#{version}-darwin-arm64.tar.gz"
-      sha256 "6414e97e676e487b03dbea89dabaa14ff6ed94a2e387a58856166602393b3898"
+      sha256 "6493a9190433eb3d6c654810e10af35404d941df3fa1d974fae390a36567267a"
     end
   end
 
@@ -353,5 +353,33 @@ class Slate < Formula
 
     assert_equal "Point(x = 1, y = 2) <class Point>\ntrue false true false\n$150 true\n42 true [\"new\"]\n",
                  shell_output("#{bin}/slate #{testpath}/objects.sl")
+
+    # What 0.0.11 is for: the two back ends saying one thing. Both halves are asserted
+    # here because both were wrong in one back end only, which is the shape of defect a
+    # single-back-end test cannot see -- and the JavaScript half is what `slate js`
+    # plus node checks, which no other assertion in this formula reaches.
+    (testpath/"parity.sl").write <<~SLATE
+      class Money
+          var cents
+
+          toString(self) = "$" + string(self.cents)
+
+      var t = {}
+
+      t[[1, 2]] = "array key"
+      t[{ a: 1 }] = "object key"
+
+      print(t[[1, 2]], t[{ a: 1 }], len(t), keys(t))
+
+      // A diagnostic renders a value WITHOUT the class's own `toString`, where the
+      // program renders it with one. Both back ends draw that line in the same place.
+      print(Money.new(150), (Money.new(150) match
+          1 -> "one") catch e -> e.message)
+    SLATE
+
+    want = "array key object key 2 [[1, 2], {a: 1}]\n" \
+           "$150 no arm of this match applies to Money(cents = 150)\n"
+
+    assert_equal want, shell_output("#{bin}/slate #{testpath}/parity.sl")
   end
 end
