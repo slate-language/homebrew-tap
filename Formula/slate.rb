@@ -1,7 +1,7 @@
 class Slate < Formula
   desc "Small indentation-structured, garbage-collected language, written in sysl"
   homepage "https://github.com/slate-language/slate"
-  version "0.0.9"
+  version "0.0.10"
   license "ISC"
 
   # macOS on Apple silicon is the only build there is. sysl does not cross-compile,
@@ -12,7 +12,7 @@ class Slate < Formula
   on_macos do
     on_arm do
       url "https://github.com/slate-language/slate/releases/download/v#{version}/slate-#{version}-darwin-arm64.tar.gz"
-      sha256 "07da9497130aec34545a4ec50b95e0987f10092382a51c491fcbd20e2ebed602"
+      sha256 "6414e97e676e487b03dbea89dabaa14ff6ed94a2e387a58856166602393b3898"
     end
   end
 
@@ -323,5 +323,35 @@ class Slate < Formula
 
     assert_equal "Handled true\n41 no\nb none\n",
                  shell_output("#{bin}/slate #{testpath}/checked.sl")
+
+    # The object model, which is what 0.0.10 is for. Every line of this was a
+    # different answer in 0.0.9: a class printed the object it desugars to, `eq`,
+    # `ne` and `toString` were not names at all, `equals` written as a method died on
+    # its arity, and `keys` reported the tag the declaration wrote.
+    #
+    # `==` staying content-based for a class is asserted too. Identity for a nominal
+    # value was built during this release and withdrawn, so it is exactly the sort of
+    # thing a later one could reintroduce by accident.
+    (testpath/"objects.sl").write <<~SLATE
+      class Point
+          var x
+          var y
+
+      class Money
+          var cents
+
+          equals(self, o) = o is Money && self.cents == o.cents
+          toString(self) = "$" + string(self.cents)
+
+      val p = Point.new(1, 2)
+
+      print(p, Point)
+      print(p == Point.new(1, 2), p.eq(Point.new(1, 2)), p.eq(p), p.ne(p))
+      print(Money.new(150), Money.new(150) == Money.new(150))
+      print((42).toString(), [1, 2].equals([1, 2]), keys(Point))
+    SLATE
+
+    assert_equal "Point(x = 1, y = 2) <class Point>\ntrue false true false\n$150 true\n42 true [\"new\"]\n",
+                 shell_output("#{bin}/slate #{testpath}/objects.sl")
   end
 end
