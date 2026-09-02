@@ -1,7 +1,7 @@
 class Slate < Formula
   desc "Small indentation-structured, garbage-collected language, written in sysl"
   homepage "https://github.com/slate-language/slate"
-  version "0.0.11"
+  version "0.0.12"
   license "ISC"
 
   # macOS on Apple silicon is the only build there is. sysl does not cross-compile,
@@ -12,11 +12,11 @@ class Slate < Formula
   on_macos do
     on_arm do
       url "https://github.com/slate-language/slate/releases/download/v#{version}/slate-#{version}-darwin-arm64.tar.gz"
-      sha256 "6493a9190433eb3d6c654810e10af35404d941df3fa1d974fae390a36567267a"
+      sha256 "22f46918f532869648f423fc2c4135432c5ed186af7680b81ba6bf515f0fa152"
     end
   end
 
-  # The five libraries the binary actually links, and the census is `otool -L slate`
+  # The six libraries the binary actually links, and the census is `otool -L slate`
   # rather than the dependency list in package.hocon -- miniz, monocypher, llhttp and
   # QOI are vendored C and appear in neither the link line nor here.
   #
@@ -28,6 +28,7 @@ class Slate < Formula
   depends_on "libuv"     # the event loop everything asynchronous is built on
   depends_on "openssl@3" # TLS, for `serve` over https and for `fetch`
   depends_on "pcre2"     # `slate:regex`, which is Perl's dialect rather than POSIX's
+  depends_on "quickjs-ng" # the engine `slate test --js` runs a suite in, new at 0.0.12
 
   def install
     # `bin.install` NAMING THE BINARY, never `prefix.install Dir["*"]` -- brew strips
@@ -381,5 +382,47 @@ class Slate < Formula
            "$150 no arm of this match applies to Money(cents = 150)\n"
 
     assert_equal want, shell_output("#{bin}/slate #{testpath}/parity.sl")
+
+    # What 0.0.12 is for: ONE suite, run by both back ends, out of this one binary.
+    #
+    # `--js` compiles the file and runs it in quickjs-ng, which is linked in -- so a
+    # formula missing `depends_on "quickjs-ng"` installs cleanly and fails here with a
+    # dyld error, which is exactly what this assertion is for. The two runs are
+    # compared to each other rather than to a fixed string, because what the release
+    # claims is that they AGREE.
+    #
+    # The four assertions in it are the divergences this release closed, one apiece:
+    # ASCII case, a mutator answering nothing, `fromBytes` answering a result, and a
+    # real surviving a JSON round trip as a real.
+    (testpath/"both.sl").write <<~SLATE
+      @test
+      case_is_ascii_only() = assertEq(upper("h\u{e9}llo"), "H\u{e9}LLO")
+
+      @test
+      a_mutator_answers_nothing() =
+          var xs = [1]
+
+          assertEq(push(xs, 2), null)
+          assertEq(xs, [1, 2])
+
+      @test
+      from_bytes_answers_a_result() = assertEq(fromBytes(toBytes("hi")).value, "hi")
+
+      @test
+      async a_real_survives_json_as_a_real() =
+          assertEq(toJSON(1.0), "1.0")
+          assert(parseJSON(toJSON(1.0)).value is real)
+          assertEq(await 7, 7)
+    SLATE
+
+    here = shell_output("#{bin}/slate test #{testpath}/both.sl")
+
+    assert_match "4 passed", here
+    assert_equal here, shell_output("#{bin}/slate test --js #{testpath}/both.sl")
+
+    # And the version the binary reports, which is the first thing anybody holding one
+    # asks. It is written by hand in two places, so a release that bumped one of them
+    # ships a binary that misreports itself.
+    assert_equal "slate #{version}\n", shell_output("#{bin}/slate --version")
   end
 end
