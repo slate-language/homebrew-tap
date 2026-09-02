@@ -1,7 +1,7 @@
 class Slate < Formula
   desc "Small indentation-structured, garbage-collected language, written in sysl"
   homepage "https://github.com/slate-language/slate"
-  version "0.0.12"
+  version "0.0.13"
   license "ISC"
 
   # macOS on Apple silicon is the only build there is. sysl does not cross-compile,
@@ -12,7 +12,7 @@ class Slate < Formula
   on_macos do
     on_arm do
       url "https://github.com/slate-language/slate/releases/download/v#{version}/slate-#{version}-darwin-arm64.tar.gz"
-      sha256 "22f46918f532869648f423fc2c4135432c5ed186af7680b81ba6bf515f0fa152"
+      sha256 "3e9d6a7cfbf1f50f02be04bd4ee353d29b55ce71029380ed2f630cbd0779b261"
     end
   end
 
@@ -424,5 +424,44 @@ class Slate < Formula
     # asks. It is written by hand in two places, so a release that bumped one of them
     # ships a binary that misreports itself.
     assert_equal "slate #{version}\n", shell_output("#{bin}/slate --version")
+
+    # What 0.0.13 is for: an ASYNCHRONOUS suite under `--js`. An embedded realm has no
+    # timers of its own -- quickjs keeps its two on a module it cannot reach -- so
+    # `sleep` and `setTimeout` were dead there, and every test written against them
+    # failed for want of a host rather than for anything it asserted.
+    #
+    # The two runs are NOT compared as text here, unlike the one above: the harness
+    # drives a virtual clock, so the interpreter reports the milliseconds it really
+    # slept and the engine reports none. That difference is the feature working. What
+    # is asserted is the verdict, on both.
+    (testpath/"timed.sl").write <<~SLATE
+      @test
+      async a_timer_resumes_the_program_later() =
+          var seen = []
+
+          setTimeout(() -> push(seen, "timer"), 10)
+          push(seen, "now")
+
+          await sleep(20)
+
+          assertEq(seen, ["now", "timer"])
+
+      @test
+      async a_continuation_runs_before_a_timer_already_due() =
+          var seen = []
+
+          setTimeout(() -> push(seen, "timer"), 0)
+
+          await resolve(0)
+
+          push(seen, "promise")
+
+          await sleep(10)
+
+          assertEq(seen, ["promise", "timer"])
+    SLATE
+
+    assert_match "2 passed", shell_output("#{bin}/slate test #{testpath}/timed.sl")
+    assert_match "2 passed", shell_output("#{bin}/slate test --js #{testpath}/timed.sl")
   end
 end
