@@ -1,7 +1,7 @@
 class Slate < Formula
   desc "Small indentation-structured, garbage-collected language, written in sysl"
   homepage "https://github.com/slate-language/slate"
-  version "0.0.6"
+  version "0.0.7"
   license "ISC"
 
   # macOS on Apple silicon is the only build there is. sysl does not cross-compile,
@@ -12,7 +12,7 @@ class Slate < Formula
   on_macos do
     on_arm do
       url "https://github.com/slate-language/slate/releases/download/v#{version}/slate-#{version}-darwin-arm64.tar.gz"
-      sha256 "3f37a4de3020febb909b9167c5abe53cc50cfbe92191a1c35485fc9d32e45cac"
+      sha256 "954cbf7ba8f7b6384ab26ee48cb86d891615bae21183593093f7a79ddd03dc89"
     end
   end
 
@@ -220,5 +220,32 @@ class Slate < Formula
                  "49f193adce178490e34d1b3a4ec0064c\n" \
                  "0c60c80f961f0e71f3a9b524af6012062fe037a6\n",
                  shell_output("#{bin}/slate #{testpath}/md5.sl")
+
+    # A declared type as a VALUE, which is what 0.0.7 is for, together with the two
+    # pattern forms that shipped with it -- `?` for a field a value need not have and
+    # `&` for the intersection of two shapes.
+    #
+    # All three in one program, because each is a different part of the binary and
+    # any one could be missing while the others work: `?` is the lexer and the
+    # matcher, `&` is the parser and the precedence ladder, and the shape is a new
+    # `Value` with a table behind it. What is asserted is a `mismatch` REPORT rather
+    # than a boolean -- it names the path, what was wanted and what arrived, so a
+    # walk that answered no for the wrong reason would not pass.
+    (testpath/"shape.sl").write <<~SLATE
+      type Note = { title: string, pinned?: boolean }
+      type Authed = { user: string } & Note
+
+      print(Note.name(), Note is shape)
+      print(Note.test({ title: "a" }), Note.test({ title: "a", pinned: 1 }))
+      print(toJSON(Note.mismatch({ pinned: 1 })))
+      print(Authed.test({ user: "u", title: "a" }), Authed.test({ title: "a" }))
+    SLATE
+
+    assert_equal <<~REPORT, shell_output("#{bin}/slate #{testpath}/shape.sl")
+      Note true
+      true false
+      [{"path":"title","wanted":"string","got":"nothing"},{"path":"pinned","wanted":"boolean","got":"integer"}]
+      true false
+    REPORT
   end
 end
