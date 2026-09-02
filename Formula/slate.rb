@@ -1,7 +1,7 @@
 class Slate < Formula
   desc "Small indentation-structured, garbage-collected language, written in sysl"
   homepage "https://github.com/slate-language/slate"
-  version "0.0.14"
+  version "0.0.15"
   license "ISC"
 
   # macOS on Apple silicon is the only build there is. sysl does not cross-compile,
@@ -12,7 +12,7 @@ class Slate < Formula
   on_macos do
     on_arm do
       url "https://github.com/slate-language/slate/releases/download/v#{version}/slate-#{version}-darwin-arm64.tar.gz"
-      sha256 "a699a5da7869c14973e131cd02ddc6a3d0530e178bed2316bcc3fc08dca4ea56"
+      sha256 "966578691f00c00f683b918942a09ea365ac145cc7a1397f888d0f48746b02c0"
     end
   end
 
@@ -469,5 +469,69 @@ class Slate < Formula
       assert_match "node could not be started",
                    shell_output("#{bin}/slate test --js #{testpath}/timed.sl", 1)
     end
+
+    # What 0.0.15 is for: an argument that says which parameter it fills, and a class
+    # that says what it ENCODES.
+    #
+    # Both in one program, because each is a different part of the binary and either
+    # could be missing while the other works: a named argument is the parser, a new
+    # instruction and the arrangement `invoke` does with it, and `toJSON` is a hook
+    # looked up the way `toString` already was.
+    #
+    # `greet("ada", punct: "?")` is the case the feature earns its place with -- a
+    # default in the MIDDLE, which is the one thing a positional call cannot say. And
+    # the data variants are asserted through `toJSON` rather than `print`, because
+    # every class instance and every data variant was unencodable before this release:
+    # the walk reached the class object and complained about a function nobody wrote.
+    #
+    # The refusal is here too, since a binary that took a name and quietly ignored it
+    # would pass every line above.
+    (testpath/"named.sl").write <<~SLATE
+      class Money
+          var cents
+
+          toJSON(self) = string(self.cents)
+
+      data Shape
+          Circle(r)
+          Rect(w, h)
+
+      greet(name, greeting = "hello", punct = "!") = greeting + ", " + name + punct
+
+      sub(a, b) = a - b
+
+      print(greet("ada", punct: "?"), greet(greeting: "hi", name: "ada"))
+      print(Rect(h: 4, w: 3), Circle(r: 7))
+      print(toJSON({ shapes: [Circle(1)], paid: Money(150) }))
+      print(sub(b: 1, a: 5), sub(a: 1, c: 2) catch e -> e.message)
+    SLATE
+
+    assert_equal <<~NAMED, shell_output("#{bin}/slate #{testpath}/named.sl")
+      hello, ada? hi, ada!
+      Rect(3, 4) Circle(7)
+      {"shapes":[{"r":1}],"paid":"150"}
+      4 `sub` has no parameter called `c` -- it takes `a` and `b`
+    NAMED
+
+    # And the checker following a `var`, which is the half of 0.0.15 that shows up as
+    # something REFUSED rather than something written.
+    #
+    # 0.0.14 ran this and faulted at the call; 0.0.15 never runs it. The complaint is
+    # what tells the two apart -- a run-time fault would say `x` was declared, and this
+    # says which argument of which call is wrong, before anything executed.
+    (testpath/"follows.sl").write <<~SLATE
+      g(n: integer) = n
+
+      h() =
+          var x = "s"
+
+          x = "t"
+          g(x)
+
+      h()
+    SLATE
+
+    assert_match "`g` takes integer here, and this is string",
+                 shell_output("#{bin}/slate #{testpath}/follows.sl", 1)
   end
 end
