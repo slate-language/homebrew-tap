@@ -1,7 +1,7 @@
 class Slate < Formula
   desc "Small indentation-structured, garbage-collected language, written in sysl"
   homepage "https://github.com/slate-language/slate"
-  version "0.0.15"
+  version "0.0.16"
   license "ISC"
 
   # macOS on Apple silicon is the only build there is. sysl does not cross-compile,
@@ -12,7 +12,7 @@ class Slate < Formula
   on_macos do
     on_arm do
       url "https://github.com/slate-language/slate/releases/download/v#{version}/slate-#{version}-darwin-arm64.tar.gz"
-      sha256 "966578691f00c00f683b918942a09ea365ac145cc7a1397f888d0f48746b02c0"
+      sha256 "08256e33d1aa9f7c2f9c5ecba509d65ea5d7eb717c2d1b6b6bd476323b7c27d1"
     end
   end
 
@@ -471,7 +471,10 @@ class Slate < Formula
     end
 
     # What 0.0.15 is for: an argument that says which parameter it fills, and a class
-    # that says what it ENCODES.
+    # that says what it ENCODES. **The spelling is 0.0.16's**: `=` rather than the `:`
+    # that shipped for one release, because `greet(name: string, greeting = "hello")`
+    # writes the type after a colon and the default after an equals -- so a colon here
+    # would have meant the parameter's TYPE one line up and its VALUE at the call.
     #
     # Both in one program, because each is a different part of the binary and either
     # could be missing while the other works: a named argument is the parser, a new
@@ -500,17 +503,22 @@ class Slate < Formula
 
       sub(a, b) = a - b
 
-      print(greet("ada", punct: "?"), greet(greeting: "hi", name: "ada"))
-      print(Rect(h: 4, w: 3), Circle(r: 7))
+      print(greet("ada", punct = "?"), greet(greeting = "hi", name = "ada"))
+      print(Rect(h = 4, w = 3), Circle(r = 7))
       print(toJSON({ shapes: [Circle(1)], paid: Money(150) }))
-      print(sub(b: 1, a: 5), sub(a: 1, c: 2) catch e -> e.message)
+      print(sub(b = 1, a = 5), sub(a = 1, c = 2) catch e -> e.message)
+      print(sub(5, 1) == 4)
     SLATE
 
+    # The last line is 0.0.16's own: `==` is its own token, so a comparison written as an
+    # argument stays an ordinary POSITIONAL one. A lookahead that took `=` too eagerly
+    # would read `sub(5, 1) == 4` as naming something and every line above would still pass.
     assert_equal <<~NAMED, shell_output("#{bin}/slate #{testpath}/named.sl")
       hello, ada? hi, ada!
       Rect(3, 4) Circle(7)
       {"shapes":[{"r":1}],"paid":"150"}
       4 `sub` has no parameter called `c` -- it takes `a` and `b`
+      true
     NAMED
 
     # And the checker following a `var`, which is the half of 0.0.15 that shows up as
