@@ -1,7 +1,7 @@
 class Slate < Formula
   desc "Small indentation-structured, garbage-collected language, written in sysl"
   homepage "https://github.com/slate-language/slate"
-  version "0.0.7"
+  version "0.0.8"
   license "ISC"
 
   # macOS on Apple silicon is the only build there is. sysl does not cross-compile,
@@ -12,7 +12,7 @@ class Slate < Formula
   on_macos do
     on_arm do
       url "https://github.com/slate-language/slate/releases/download/v#{version}/slate-#{version}-darwin-arm64.tar.gz"
-      sha256 "954cbf7ba8f7b6384ab26ee48cb86d891615bae21183593093f7a79ddd03dc89"
+      sha256 "3a334920dfded3542d9b4a0d7cebf64c2289becc84928265bacb65a35eb2df05"
     end
   end
 
@@ -247,5 +247,44 @@ class Slate < Formula
       [{"path":"title","wanted":"string","got":"nothing"},{"path":"pinned","wanted":"boolean","got":"integer"}]
       true false
     REPORT
+
+    # `array of T`, a rest parameter and an operator a class answers for, which is what 0.0.8 is
+    # for. All three in one program, because each is a different part of the binary and any one
+    # could be missing while the others work: `array of T` is a pattern node and a matcher,
+    # `...rest` is the parser plus the gather every call path shares, and an operator hook is a
+    # lookup `arith` only reaches after everything else has declined.
+    #
+    # What is asserted for the first is a `mismatch` REPORT rather than a boolean -- an array
+    # pattern already answered `true` for `["a", 2] is [string, ...]`, so a boolean would pass on
+    # the very thing this release exists to fix.
+    (testpath/"widen.sl").write <<~SLATE
+      type Tags = array of string
+
+      class Money
+          var cents
+
+          plus(self, o) = Money(self.cents + o.cents)
+          compare(self, o) = self.cents - o.cents
+
+      total(first, ...rest) =
+          var sum = first
+
+          for m in rest
+              sum = sum + m
+
+          sum
+
+      print(Tags.test(["a", "b"]), Tags.test(["a", 2]), Tags.test([]))
+      print(toJSON(Tags.mismatch(["a", 2])))
+      print(total(Money(1)).cents, total(Money(1), Money(2), Money(3)).cents)
+      print(Money(1) < Money(2), Money(2) < Money(1))
+    SLATE
+
+    assert_equal <<~WIDE, shell_output("#{bin}/slate #{testpath}/widen.sl")
+      true false true
+      [{"path":"1","wanted":"string","got":"integer"}]
+      1 6
+      true false
+    WIDE
   end
 end
