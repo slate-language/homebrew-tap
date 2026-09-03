@@ -1,7 +1,7 @@
 class Slate < Formula
   desc "Small indentation-structured, garbage-collected language, written in sysl"
   homepage "https://github.com/slate-language/slate"
-  version "0.0.18"
+  version "0.0.19"
   license "ISC"
 
   # macOS on Apple silicon is the only build there is. sysl does not cross-compile,
@@ -12,7 +12,7 @@ class Slate < Formula
   on_macos do
     on_arm do
       url "https://github.com/slate-language/slate/releases/download/v#{version}/slate-#{version}-darwin-arm64.tar.gz"
-      sha256 "84f65f3c9ec8766d0b21d5a8a991ef74ff3b6667a48d584790ab4acfdca95d4c"
+      sha256 "6ecd5ff0f6bcc664a45cd18dd019b6dfa22639aa6a7e61f8f8e6d2cb33f1891a"
     end
   end
 
@@ -608,5 +608,70 @@ class Slate < Formula
 
     assert_equal "[3, 2, 1]\n[2, 4]\n",
                  shell_output("#{bin}/slate #{testpath}/handed.sl")
+
+    # What 0.0.19 is for: `for await`, which asks its subject for `next()` and awaits the answer.
+    #
+    # BOTH kinds of source in one program, because the whole design claim is that one rule covers
+    # them: a generator answers `{value, done}` outright and the object answers a promise of the
+    # same shape, and awaiting a value that is not a promise answers it. A binary that handled only
+    # the asynchronous half would pass a test written with either one alone.
+    #
+    # The `else` is here too, since a loop that finished on its own is the arm with no element to
+    # bind and the one most easily left out of a new loop form.
+    (testpath/"await.sl").write <<~SLATE
+      twoOf()
+          yield 1
+          yield 2
+
+      counted(n)
+          var i = 0
+          val it = {}
+
+          it.next = async () ->
+              await sleep(1)
+
+              if i >= n then { done: true, value: null }
+              else
+                  i += 1
+                  { done: false, value: i * 10 }
+
+          it
+
+      async main()
+          for await x in twoOf()
+              print("gen", x)
+
+          for await v in counted(2)
+              print("async", v)
+
+          val found = 'search for await v in counted(9)
+              if v == 30 then break 'search v
+
+          print("found", found)
+
+          for await v in counted(0)
+              print("never")
+          else
+              print("nothing arrived")
+
+      main()
+    SLATE
+
+    assert_equal "gen 1\ngen 2\nasync 10\nasync 20\nfound 30\nnothing arrived\n",
+                 shell_output("#{bin}/slate #{testpath}/await.sl")
+
+    # And the refusal, which is the half a binary could get wrong while running every line above.
+    # An array has no `next()`, and the sentence names the `await` rather than a method the program
+    # never wrote -- that wording is the whole reason the guard instruction exists.
+    (testpath/"walked.sl").write <<~SLATE
+      async main()
+          for await x in [1, 2]
+              print(x)
+
+      main()
+    SLATE
+
+    assert_match "write `for` without `await` to walk an array",
+                 shell_output("#{bin}/slate #{testpath}/walked.sl", 1)
   end
 end
