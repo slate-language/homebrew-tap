@@ -1,7 +1,7 @@
 class Slate < Formula
   desc "Small indentation-structured, garbage-collected language, written in sysl"
   homepage "https://github.com/slate-language/slate"
-  version "0.0.19"
+  version "0.0.20"
   license "ISC"
 
   # macOS on Apple silicon is the only build there is. sysl does not cross-compile,
@@ -12,7 +12,7 @@ class Slate < Formula
   on_macos do
     on_arm do
       url "https://github.com/slate-language/slate/releases/download/v#{version}/slate-#{version}-darwin-arm64.tar.gz"
-      sha256 "6ecd5ff0f6bcc664a45cd18dd019b6dfa22639aa6a7e61f8f8e6d2cb33f1891a"
+      sha256 "46947b343a14502a15915a348d11bc7546e68f71d3c6abc658b870bdac462a48"
     end
   end
 
@@ -673,5 +673,49 @@ class Slate < Formula
 
     assert_match "write `for` without `await` to walk an array",
                  shell_output("#{bin}/slate #{testpath}/walked.sl", 1)
+
+    # What 0.0.20 is for: a type written INLINE, wherever a type is wanted.
+    #
+    # Five things in one program, because each is a different part of the binary and any one could
+    # be missing while the others work: a function type is a new pattern node the parser reads only
+    # in a type position, brackets that GROUP are the same node reached another way, an annotation
+    # on a binding is a statement the parser generates beside it, a type parameter is solved in the
+    # checker and erased in the machine, and a generic type is substituted while compiling.
+    #
+    # `Pair.name()` is here because a generic type still binds a VALUE -- the shape with nothing
+    # filled in -- which is the piece most easily lost when the arguments became a compiling-time
+    # thing.
+    (testpath/"typed.sl").write <<~SLATE
+      type Pair[A, B] = { first: A, second: B }
+
+      first[T](xs: array of T) -> T = xs[0]
+      apply(f: integer -> integer) -> integer = f(1)
+      keep(xs: array of (string | null)) = len(xs)
+      show(p: Pair[string, integer]) = s"${p.first}=${p.second}"
+
+      val tags: array of string = ["reading", "writing"]
+      var count: integer = 0
+
+      count += 1
+
+      print(first(tags), apply(n -> n + 41), keep(["a", null]), count)
+      print(show({ first: "a", second: 1 }), Pair.name())
+    SLATE
+
+    assert_equal "reading 42 2 1\na=1 Pair\n",
+                 shell_output("#{bin}/slate #{testpath}/typed.sl")
+
+    # And the half that shows up as something REFUSED. An annotated `var` is TypeScript's `let`, so
+    # the assignment is checked against what the name was declared -- and this is the one place the
+    # checker refuses a program the machine would have run, which makes it exactly the assertion a
+    # binary could pass everything above without.
+    (testpath/"declared.sl").write <<~SLATE
+      var n: integer = 0
+
+      n = "later"
+    SLATE
+
+    assert_match "`n` was declared integer, and this is string",
+                 shell_output("#{bin}/slate #{testpath}/declared.sl", 1)
   end
 end
