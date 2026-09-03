@@ -1,7 +1,7 @@
 class Slate < Formula
   desc "Small indentation-structured, garbage-collected language, written in sysl"
   homepage "https://github.com/slate-language/slate"
-  version "0.0.17"
+  version "0.0.18"
   license "ISC"
 
   # macOS on Apple silicon is the only build there is. sysl does not cross-compile,
@@ -12,7 +12,7 @@ class Slate < Formula
   on_macos do
     on_arm do
       url "https://github.com/slate-language/slate/releases/download/v#{version}/slate-#{version}-darwin-arm64.tar.gz"
-      sha256 "73a7ebfc4b21068a738f4ede520bcaa38fc0a051469ce55f49acb0e282867a54"
+      sha256 "84f65f3c9ec8766d0b21d5a8a991ef74ff3b6667a48d584790ab4acfdca95d4c"
     end
   end
 
@@ -579,5 +579,34 @@ class Slate < Formula
 
     assert_match "`f` takes array of string here, and this is array of integer",
                  shell_output("#{bin}/slate #{testpath}/elements.sl", 1)
+
+    # What 0.0.18 is for: a callback knows what it is HANDED, so the mistake is caught inside the
+    # lambda's own body rather than one call later.
+    #
+    # 0.0.17 typed the RESULT of `map` and left `n` as `any`, so this program compiled and faulted
+    # when it ran. What the message says is the tell: it names the operator and the two kinds, at
+    # the multiplication, which only a pass that knew `s` was a string could do.
+    (testpath/"callback.sl").write <<~SLATE
+      g(ss: array of string) = map(ss, s -> s * 2)
+
+      g(["a"])
+    SLATE
+
+    assert_match "`*` does not apply to string and integer",
+                 shell_output("#{bin}/slate #{testpath}/callback.sl", 1)
+
+    # And the half that must NOT be refused, which is the direction this pass may never be wrong in.
+    # A comparator takes two elements and a bare `array` says nothing about its own, so both of
+    # these run -- a release that tightened the arity or the element type too far fails here rather
+    # than in somebody's program.
+    (testpath/"handed.sl").write <<~SLATE
+      h(ns: array of integer) = ns.sorted((a, b) -> a > b)
+
+      print(h([2, 3, 1]))
+      print(map([1, 2], n -> n * 2))
+    SLATE
+
+    assert_equal "[3, 2, 1]\n[2, 4]\n",
+                 shell_output("#{bin}/slate #{testpath}/handed.sl")
   end
 end
