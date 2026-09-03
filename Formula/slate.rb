@@ -1,7 +1,7 @@
 class Slate < Formula
   desc "Small indentation-structured, garbage-collected language, written in sysl"
   homepage "https://github.com/slate-language/slate"
-  version "0.0.23"
+  version "0.0.24"
   license "ISC"
 
   # macOS on Apple silicon is the only build there is. sysl does not cross-compile,
@@ -12,7 +12,7 @@ class Slate < Formula
   on_macos do
     on_arm do
       url "https://github.com/slate-language/slate/releases/download/v#{version}/slate-#{version}-darwin-arm64.tar.gz"
-      sha256 "b45c271ce757b37e82e8e8a2119c837033ce8e4cfb274cb7b11b067e8b543342"
+      sha256 "41bcbe83ab8bacc3d50ad28732cbb0f3e8bbc6a6d0f4b08ada6e786944643e13"
     end
   end
 
@@ -810,5 +810,37 @@ class Slate < Formula
                  "\"event: tick\\nid: 1\\ndata: {\\\"n\\\":1}\\n\\n\"\n" \
                  "\"data: two\\n\\n\"\n",
                  shell_output("#{bin}/slate #{testpath}/stream.sl")
+
+    # A `data` name as a SHAPE VALUE, which is what 0.0.24 is for. It is one of the
+    # few features that cannot be smoke-tested by a program merely running: the name
+    # bound before this release, and `Failure.test` faulted with "`test` is not a
+    # field of this object" -- so what proves the binary has it is the ANSWER rather
+    # than the absence of a complaint.
+    #
+    # The `shape`-annotated parameter is asserted with it, because that is the half a
+    # program actually uses: a framework takes the type and asks it about a value,
+    # and an annotation refusing a data name would leave the three methods unreachable
+    # from anything that declared what it wanted.
+    (testpath/"shapes.sl").write <<~SLATE
+      data Failure
+          NotFound(what)
+          Empty
+
+      class Point
+          var x
+          var y
+
+      fits(s: shape, v) = s.test(v)
+
+      print(Failure.name(), Failure.test(Empty), Failure.test(3))
+      print(fits(Point, Point(1, 2)), fits(Failure, NotFound("a")))
+      print(Point.mismatch(3))
+      print(Point, Failure, print)
+    SLATE
+
+    assert_equal "Failure true false\ntrue true\n" \
+                 "[{path: \"\", wanted: \"Point\", got: \"integer\"}]\n" \
+                 "<class Point> <data Failure> <function>\n",
+                 shell_output("#{bin}/slate #{testpath}/shapes.sl")
   end
 end
