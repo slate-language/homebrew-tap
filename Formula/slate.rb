@@ -1,7 +1,7 @@
 class Slate < Formula
   desc "Small indentation-structured, garbage-collected language, written in sysl"
   homepage "https://github.com/slate-language/slate"
-  version "0.0.21"
+  version "0.0.22"
   license "ISC"
 
   # macOS on Apple silicon is the only build there is. sysl does not cross-compile,
@@ -12,7 +12,7 @@ class Slate < Formula
   on_macos do
     on_arm do
       url "https://github.com/slate-language/slate/releases/download/v#{version}/slate-#{version}-darwin-arm64.tar.gz"
-      sha256 "5c54a1aead38c62b8302f3b13abc4713f8fe6c2fdf2cd062c28ae712d80aa4c9"
+      sha256 "056265b1dcfa29926eb237d43af1eb5deea746b3369b853f87b73da4e3162120"
     end
   end
 
@@ -719,7 +719,10 @@ class Slate < Formula
     assert_match "`n` was declared integer, and this is string",
                  shell_output("#{bin}/slate #{testpath}/declared.sl", 1)
 
-    # What 0.0.21 is for: HTTP/2. A whole request and its answer, driven between two sessions in
+    # What 0.0.21 is for, under the name 0.0.22 gave it: HTTP/2. The module is `slate:nghttp2` and
+    # not `slate:h2` -- named for the library as `slate:llhttp` is, with the protocol's own names
+    # inside it -- so this doubles as the assertion that the rename actually shipped.
+    # A whole request and its answer, driven between two sessions in
     # THIS process -- no socket, no port, nothing that can hang in a brew test -- which is the
     # module's own design rather than a convenience of the test: a session is a transformation of
     # bytes that never learns where they came from.
@@ -733,8 +736,8 @@ class Slate < Formula
     # It also proves the sixth dylib is there: `libnghttp2` is new in this release, and a formula
     # missing it installs cleanly and then dies with a dyld error naming a path nobody typed.
     (testpath/"h2.sl").write <<~SLATE
-      import { h2Client, h2Server, h2Receive, h2Send, h2Next, h2Request, h2Respond } from slate:h2
-      import { hpackDeflater, hpackInflater, hpackDeflate, hpackInflate } from slate:h2
+      import { h2Client, h2Server, h2Receive, h2Send, h2Next, h2Request, h2Respond } from slate:nghttp2
+      import { hpackDeflater, hpackInflater, hpackDeflate, hpackInflate } from slate:nghttp2
 
       val c = h2Client()
       val s = h2Server()
