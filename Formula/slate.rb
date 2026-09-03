@@ -1,7 +1,7 @@
 class Slate < Formula
   desc "Small indentation-structured, garbage-collected language, written in sysl"
   homepage "https://github.com/slate-language/slate"
-  version "0.0.20"
+  version "0.0.21"
   license "ISC"
 
   # macOS on Apple silicon is the only build there is. sysl does not cross-compile,
@@ -12,11 +12,11 @@ class Slate < Formula
   on_macos do
     on_arm do
       url "https://github.com/slate-language/slate/releases/download/v#{version}/slate-#{version}-darwin-arm64.tar.gz"
-      sha256 "46947b343a14502a15915a348d11bc7546e68f71d3c6abc658b870bdac462a48"
+      sha256 "5c54a1aead38c62b8302f3b13abc4713f8fe6c2fdf2cd062c28ae712d80aa4c9"
     end
   end
 
-  # The five libraries the binary actually links, and the census is `otool -L slate`
+  # The six libraries the binary actually links, and the census is `otool -L slate`
   # rather than the dependency list in package.hocon -- miniz, monocypher, llhttp and
   # QOI are vendored C and appear in neither the link line nor here.
   #
@@ -25,6 +25,7 @@ class Slate < Formula
   # release rather than carried forward.
   depends_on "brotli"    # `slate:brotli`, and `Content-Encoding: br` on a response
   depends_on "hiredis"   # `slate:redis` -- the RESP reader; the socket stays slate's
+  depends_on "libnghttp2" # `slate:h2` -- HTTP/2 framing and HPACK; the socket stays slate's again
   depends_on "libuv"     # the event loop everything asynchronous is built on
   depends_on "openssl@3" # TLS, for `serve` over https and for `fetch`
   depends_on "pcre2"     # `slate:regex`, which is Perl's dialect rather than POSIX's
@@ -717,5 +718,60 @@ class Slate < Formula
 
     assert_match "`n` was declared integer, and this is string",
                  shell_output("#{bin}/slate #{testpath}/declared.sl", 1)
+
+    # What 0.0.21 is for: HTTP/2. A whole request and its answer, driven between two sessions in
+    # THIS process -- no socket, no port, nothing that can hang in a brew test -- which is the
+    # module's own design rather than a convenience of the test: a session is a transformation of
+    # bytes that never learns where they came from.
+    #
+    # The three assertions are three different parts of the binary and any one could be missing
+    # while the others work: the framing session, HPACK on its own, and the refusal a server gives a
+    # client that never heard of h2. The last is the one that says the failure channel is right --
+    # bytes the peer got wrong are an ANSWER, because a fault would take a server down with one bad
+    # connection.
+    #
+    # It also proves the sixth dylib is there: `libnghttp2` is new in this release, and a formula
+    # missing it installs cleanly and then dies with a dyld error naming a path nobody typed.
+    (testpath/"h2.sl").write <<~SLATE
+      import { h2Client, h2Server, h2Receive, h2Send, h2Next, h2Request, h2Respond } from slate:h2
+      import { hpackDeflater, hpackInflater, hpackDeflate, hpackInflate } from slate:h2
+
+      val c = h2Client()
+      val s = h2Server()
+
+      pump(from, to)
+          val bytes = h2Send(from)
+
+          if len(bytes) > 0 then h2Receive(to, bytes)
+
+      seen(who)
+          var out = []
+
+          loop
+              val e = h2Next(who)
+
+              if e == null then break
+
+              push(out, e)
+
+          out
+
+      h2Request(c, { ":method": "GET", ":scheme": "https", ":authority": "a.test", ":path": "/things" })
+      pump(c, s)
+
+      for e in seen(s)
+          if e.kind == "headers" then h2Respond(s, e.stream, { ":status": "200" }, "answered " + e.headers[3][1])
+
+      pump(s, c)
+
+      for e in seen(c)
+          if e.kind == "data" then print(fromBytes(e.bytes).value)
+
+      print(hpackInflate(hpackInflater(), hpackDeflate(hpackDeflater(), { ":status": "200" })))
+      print(h2Receive(h2Server(), toBytes("GET / HTTP/1.1\r\n\r\n")).error != "")
+    SLATE
+
+    assert_equal "answered /things\n[[\":status\", \"200\"]]\ntrue\n",
+                 shell_output("#{bin}/slate #{testpath}/h2.sl")
   end
 end
