@@ -1,7 +1,7 @@
 class Slate < Formula
   desc "Small indentation-structured, garbage-collected language, written in sysl"
   homepage "https://github.com/slate-language/slate"
-  version "0.0.22"
+  version "0.0.23"
   license "ISC"
 
   # macOS on Apple silicon is the only build there is. sysl does not cross-compile,
@@ -12,7 +12,7 @@ class Slate < Formula
   on_macos do
     on_arm do
       url "https://github.com/slate-language/slate/releases/download/v#{version}/slate-#{version}-darwin-arm64.tar.gz"
-      sha256 "056265b1dcfa29926eb237d43af1eb5deea746b3369b853f87b73da4e3162120"
+      sha256 "b45c271ce757b37e82e8e8a2119c837033ce8e4cfb274cb7b11b067e8b543342"
     end
   end
 
@@ -25,7 +25,7 @@ class Slate < Formula
   # release rather than carried forward.
   depends_on "brotli"    # `slate:brotli`, and `Content-Encoding: br` on a response
   depends_on "hiredis"   # `slate:redis` -- the RESP reader; the socket stays slate's
-  depends_on "libnghttp2" # `slate:h2` -- HTTP/2 framing and HPACK; the socket stays slate's again
+  depends_on "libnghttp2" # `slate:nghttp2` -- HTTP/2 framing and HPACK, and now `slate:http` over it
   depends_on "libuv"     # the event loop everything asynchronous is built on
   depends_on "openssl@3" # TLS, for `serve` over https and for `fetch`
   depends_on "pcre2"     # `slate:regex`, which is Perl's dialect rather than POSIX's
@@ -776,5 +776,39 @@ class Slate < Formula
 
     assert_equal "answered /things\n[[\":status\", \"200\"]]\ntrue\n",
                  shell_output("#{bin}/slate #{testpath}/h2.sl")
+
+    # What 0.0.23 is for: a response that arrives in pieces, and `sse` over it. No
+    # socket and no port -- `sse` answers an ordinary response VALUE whose body is a
+    # source, so what it framed can be read here without anything listening.
+    #
+    # Three parts of the release in one file and any one could be missing while the
+    # others work: the source protocol (`for await` over a generator the handler
+    # answered), the SSE framing, and `percentDecode`, which `slate:http` did not
+    # export until now. The keyword field name is the fourth and is the one thing
+    # here that is a change to the PARSER rather than to a module.
+    (testpath/"stream.sl").write <<~SLATE
+      import { sse, percentDecode } from slate:http
+
+      ticks()
+          yield { event: "tick", id: 1, data: { n: 1 } }
+          yield "two"
+
+      val r = sse(ticks(), { heartbeat: 0 })
+      val o = { with: 1, if: 2 }
+
+      print(r.status, r.headers["Content-Type"], r.heartbeat)
+      print(o.with, o.if, percentDecode("caf%C3%A9", false))
+
+      async main()
+          for await piece in r.body
+              print(toJSON(piece))
+
+      main()
+    SLATE
+
+    assert_equal "200 text/event-stream 0\n1 2 caf\u00e9\n" \
+                 "\"event: tick\\nid: 1\\ndata: {\\\"n\\\":1}\\n\\n\"\n" \
+                 "\"data: two\\n\\n\"\n",
+                 shell_output("#{bin}/slate #{testpath}/stream.sl")
   end
 end
