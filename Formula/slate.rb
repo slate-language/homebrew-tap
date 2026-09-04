@@ -1,7 +1,7 @@
 class Slate < Formula
   desc "Small indentation-structured, garbage-collected language, written in sysl"
   homepage "https://github.com/slate-language/slate"
-  version "0.0.25"
+  version "0.0.26"
   license "ISC"
 
   # macOS on Apple silicon is the only build there is. sysl does not cross-compile,
@@ -12,7 +12,7 @@ class Slate < Formula
   on_macos do
     on_arm do
       url "https://github.com/slate-language/slate/releases/download/v#{version}/slate-#{version}-darwin-arm64.tar.gz"
-      sha256 "f30829cede2e0c6d9cd0abfed69ca2063c65cc0fd11bfb8f5b2547fc1296c1fa"
+      sha256 "58b7eb226289e3ea1904ab4db08c7c0458bae318d8915bfd563819193e709bc2"
     end
   end
 
@@ -931,5 +931,59 @@ class Slate < Formula
     assert_equal "text/event-stream\n" \
                  "\"event: tick\\nid: 1\\ndata: {\\\"n\\\":1}\\n\\ndata: two\\n\\n\"\n",
                  shell_output("#{bin}/slate #{testpath}/h2sse.sl")
+
+    # A password hashed on the THREAD POOL, which is what 0.0.26 is for. `hash`,
+    # `hashStrong` and `check` answer promises now: the derivation is deliberately a
+    # tenth of a second, and on the loop that was a tenth of a second in which the
+    # server answered nobody.
+    #
+    # The `await`s are what a binary one release behind would fail on -- there `hash`
+    # answers the record itself, so `check` would be handed a promise and refuse it by
+    # name. And a round trip rather than a fixed vector, because the salt is sixteen
+    # fresh bytes from the kernel per call: two records of one password differ, and
+    # each verifies only its own.
+    (testpath/"login.sl").write <<~SLATE
+      import { hash, check, needsRehash } from slate:password
+
+      async main()
+          val stored = await hash("correct horse")
+
+          print(startsWith(stored, "$argon2id$"))
+          print(await check(stored, "correct horse"))
+          print(await check(stored, "wrong"))
+          print(needsRehash(stored))
+
+      main()
+    SLATE
+
+    assert_equal "true\ntrue\nfalse\nfalse\n",
+                 shell_output("#{bin}/slate #{testpath}/login.sl")
+
+    # The two refusals 0.0.26 adds, which are the other half of what it is for and are
+    # the cheapest thing here to check: both are decided while compiling, so neither
+    # runs anything.
+    #
+    # **The REFUSAL is what is asserted for each**, because a checker is judged by what
+    # it will not let you write -- and a binary missing either change accepts the
+    # program and prints an answer, which is the failure this catches.
+    (testpath/"excess.sl").write <<~SLATE
+      type Style = { color: string }
+
+      use(s: Style) = s.color
+
+      print(use({ colour: "red" }))
+    SLATE
+
+    assert_match "did you mean `color`?",
+                 shell_output("#{bin}/slate #{testpath}/excess.sl", 1)
+
+    (testpath/"pair.sl").write <<~SLATE
+      pair[T](a: T, b: T) -> array of T = [a, b]
+
+      print(pair(1, "x"))
+    SLATE
+
+    assert_match "`T` is integer from an argument before this one, and this is string",
+                 shell_output("#{bin}/slate #{testpath}/pair.sl", 1)
   end
 end
