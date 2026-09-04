@@ -1,7 +1,7 @@
 class Slate < Formula
   desc "Small indentation-structured, garbage-collected language, written in sysl"
   homepage "https://github.com/slate-language/slate"
-  version "0.0.24"
+  version "0.0.25"
   license "ISC"
 
   # macOS on Apple silicon is the only build there is. sysl does not cross-compile,
@@ -12,7 +12,7 @@ class Slate < Formula
   on_macos do
     on_arm do
       url "https://github.com/slate-language/slate/releases/download/v#{version}/slate-#{version}-darwin-arm64.tar.gz"
-      sha256 "41bcbe83ab8bacc3d50ad28732cbb0f3e8bbc6a6d0f4b08ada6e786944643e13"
+      sha256 "f30829cede2e0c6d9cd0abfed69ca2063c65cc0fd11bfb8f5b2547fc1296c1fa"
     end
   end
 
@@ -842,5 +842,94 @@ class Slate < Formula
                  "[{path: \"\", wanted: \"Point\", got: \"integer\"}]\n" \
                  "<class Point> <data Failure> <function>\n",
                  shell_output("#{bin}/slate #{testpath}/shapes.sl")
+
+    # SSE over HTTP/2, which is what 0.0.25 is for. 0.0.24 could speak h2 and could
+    # stream over 1.1, and the one thing it refused was the two together: a response
+    # whose body arrives a piece at a time went out over h2 as a single DATA frame at
+    # the end, or not at all.
+    #
+    # **The whole exchange, over a real loopback socket with a real ALPN handshake**,
+    # because every layer here could be present while the release's own change was
+    # missing: `slate:net` negotiates `h2`, `slate:nghttp2` frames it, `slate:http`
+    # answers the route, and only the last of them knows how to hand a source over
+    # frame by frame. What is asserted is the body a client actually read off the
+    # DATA frames, not what the server thought it wrote.
+    system Formula["openssl@3"].opt_bin/"openssl", "req",
+           "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "2",
+           "-subj", "/CN=localhost", "-addext", "subjectAltName=DNS:localhost",
+           "-keyout", testpath/"h2key.pem", "-out", testpath/"h2cert.pem"
+
+    (testpath/"h2sse.sl").write <<~SLATE
+      import { serve, sse, router } from slate:http
+      import { connect, send, onBytes, close, localPort, startTls } from slate:net
+      import { h2Client, h2Receive, h2Send, h2Next, h2Request, h2Close } from slate:nghttp2
+      import { readFileSync } from slate:fs
+
+      val theCert = readFileSync("#{testpath}/h2cert.pem").value
+      val theKey = readFileSync("#{testpath}/h2key.pem").value
+
+      ticking()
+          yield { event: "tick", id: 1, data: { n: 1 } }
+          yield "two"
+
+      val app = router()
+
+      app.get("/events", (req) -> sse(ticking(), { heartbeat: 0 }))
+
+      val server = serve({ port: 0, cert: theCert, key: theKey, alpn: ["h2"] }, app)
+
+      async main()
+          val c = (await connect("localhost", localPort(server))).value
+          val h = h2Client()
+
+          pump()
+              val out = h2Send(h)
+
+              if len(out) > 0 then send(c, out)
+
+          var body = ""
+          var kind = ""
+
+          arrived(chunk)
+              if chunk == null then return
+
+              h2Receive(h, chunk)
+
+              loop
+                  val e = h2Next(h)
+
+                  if e == null then break
+
+                  if e.kind == "headers"
+                      for [name, value] in e.headers
+                          if name == "content-type" then kind = value
+
+                  if e.kind == "data" then body = body + fromBytes(e.bytes).value
+
+                  if e.kind == "streamClose"
+                      print(kind)
+                      print(toJSON(body))
+
+                      h2Close(h)
+                      close(c)
+                      close(server)
+
+                      return
+
+              pump()
+
+          onBytes(c, arrived)
+
+          await startTls(c, { host: "localhost", trust: theCert, alpn: ["h2"] })
+
+          h2Request(h, { ":method": "GET", ":scheme": "https", ":authority": "localhost", ":path": "/events" })
+          pump()
+
+      main()
+    SLATE
+
+    assert_equal "text/event-stream\n" \
+                 "\"event: tick\\nid: 1\\ndata: {\\\"n\\\":1}\\n\\ndata: two\\n\\n\"\n",
+                 shell_output("#{bin}/slate #{testpath}/h2sse.sl")
   end
 end
