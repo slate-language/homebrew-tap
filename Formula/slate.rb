@@ -1,7 +1,7 @@
 class Slate < Formula
   desc "Small indentation-structured, garbage-collected language, written in sysl"
   homepage "https://github.com/slate-language/slate"
-  version "0.0.30"
+  version "0.0.31"
   license "ISC"
 
   # macOS on Apple silicon is the only build there is. sysl does not cross-compile,
@@ -12,13 +12,14 @@ class Slate < Formula
   on_macos do
     on_arm do
       url "https://github.com/slate-language/slate/releases/download/v#{version}/slate-#{version}-darwin-arm64.tar.gz"
-      sha256 "482b95b9a90fc45bef12bfeb3a6d7cac2c5f85f3e70486d39c6abedf5f69f200"
+      sha256 "250c24422eafe28318397d7d1fdb6dc09c3e4b750d13c9b8ec789cf0dfaf56da"
     end
   end
 
-  # The six libraries the binary actually links, and the census is `otool -L slate`
-  # rather than the dependency list in package.hocon -- miniz, monocypher, llhttp and
-  # QOI are vendored C and appear in neither the link line nor here.
+  # The nine libraries the binary actually links, and the census is `otool -L slate`
+  # rather than the dependency list in package.hocon -- miniz, monocypher, llhttp, stb
+  # and QOI are vendored C and appear in neither the link line nor here, and SQLite is
+  # /usr/lib's rather than Homebrew's, so `slate:sqlite` owes this list nothing either.
   #
   # A missing one installs cleanly and then fails to start, with a dyld error naming
   # a path nobody typed, so this list is re-read from the shipped binary at each
@@ -27,8 +28,13 @@ class Slate < Formula
   depends_on "hiredis"   # `slate:redis` -- the RESP reader; the socket stays slate's
   depends_on "libnghttp2" # `slate:nghttp2` -- HTTP/2 framing and HPACK, and now `slate:http` over it
   depends_on "libuv"     # the event loop everything asynchronous is built on
+  depends_on "lmdb"      # `slate:lmdb` -- the store a session, a bucket and a replay ring live in
   depends_on "openssl@3" # TLS, for `serve` over https and for `fetch`
   depends_on "pcre2"     # `slate:regex`, which is Perl's dialect rather than POSIX's
+  # The formula is `webp`; the library and its pkg-config name are `libwebp`, and naming
+  # the library here is a formula brew cannot find.
+  depends_on "webp"      # `slate:image`'s WebP half, which stb has never been able to read
+  depends_on "zstd"      # `slate:zstd`, and `Content-Encoding: zstd` on a response
 
   def install
     # `bin.install` NAMING THE BINARY, never `prefix.install Dir["*"]` -- brew strips
@@ -1106,5 +1112,55 @@ class Slate < Formula
 
     assert_match "is not slate source, so there are no names in it to take",
                  shell_output("#{bin}/slate #{testpath}/wrong.sl", 1)
+
+    # 0.0.31, and the four lines are four different things an install can get wrong about it.
+    #
+    # `upper("ß")` is the UNICODE half: it answers `SS`, one character becoming two, which is
+    # the single input that separates the whole database from the ASCII range `upper` used to
+    # be -- a binary still doing the old thing answers `ß` and passes any round trip written
+    # against itself. `casefold` and `normalize` are the two names that did not exist at all.
+    #
+    # `_ > 2` is the PLACEHOLDER, which is a parse-level feature: a binary one commit behind
+    # fails here at the punctuation rather than at an assertion.
+    #
+    # zstd and LMDB are the two libraries this release added to the LINK LINE, and they are
+    # the reason this test exists rather than being a nicety: a formula missing either
+    # `depends_on` installs cleanly and then dies with a dyld error naming a path nobody
+    # typed, before a line of slate runs. Both are exercised rather than imported, LMDB
+    # writing `data.mdb` and `lock.mdb` into a directory of its own -- and the key that is not
+    # there is asserted beside the one that is, `null` being what a store answers about a key
+    # it does not have rather than a fault.
+    (testpath/"store").mkpath
+
+    (testpath/"u31.sl").write <<~SLATE
+      import { lmdbOpen, lmdbWrite, lmdbDb, lmdbPut, lmdbCommit } from slate:lmdb
+      import { lmdbRead, lmdbGet, lmdbAbort, lmdbClose } from slate:lmdb
+      import { zstd, unzstd } from slate:zstd
+
+      print(upper("ß"), casefold("Straße"), normalize("é", "NFC"))
+      print([1, 2, 3, 4].filter(_ > 2))
+
+      val packed = zstd(toBytes("xyz xyz xyz xyz xyz xyz"), 3)
+
+      print(fromBytes(unzstd(packed, 4096).value).value)
+
+      val store = lmdbOpen("#{testpath}/store", { mapSize: 1 << 20, maxDbs: 2 })
+      val w = lmdbWrite(store)
+
+      lmdbPut(w, lmdbDb(w, "t"), "k", toBytes("v"))
+      lmdbCommit(w)
+
+      val r = lmdbRead(store)
+
+      print(fromBytes(lmdbGet(r, lmdbDb(r, "t"), "k")).value, lmdbGet(r, lmdbDb(r, "t"), "nope"))
+      lmdbAbort(r)
+      lmdbClose(store)
+    SLATE
+
+    assert_equal "SS strasse é\n" \
+                 "[3, 4]\n" \
+                 "xyz xyz xyz xyz xyz xyz\n" \
+                 "v null\n",
+                 shell_output("#{bin}/slate #{testpath}/u31.sl")
   end
 end
