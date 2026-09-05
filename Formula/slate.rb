@@ -1,7 +1,7 @@
 class Slate < Formula
   desc "Small indentation-structured, garbage-collected language, written in sysl"
   homepage "https://github.com/slate-language/slate"
-  version "0.0.31"
+  version "0.0.32"
   license "ISC"
 
   # macOS on Apple silicon is the only build there is. sysl does not cross-compile,
@@ -12,7 +12,7 @@ class Slate < Formula
   on_macos do
     on_arm do
       url "https://github.com/slate-language/slate/releases/download/v#{version}/slate-#{version}-darwin-arm64.tar.gz"
-      sha256 "250c24422eafe28318397d7d1fdb6dc09c3e4b750d13c9b8ec789cf0dfaf56da"
+      sha256 "52e317a11c765ca4d60696a7866819eef6166aa59b6950fbdcfd9a2dbe2fbca8"
     end
   end
 
@@ -938,26 +938,30 @@ class Slate < Formula
                  "\"event: tick\\nid: 1\\ndata: {\\\"n\\\":1}\\n\\ndata: two\\n\\n\"\n",
                  shell_output("#{bin}/slate #{testpath}/h2sse.sl")
 
-    # A password hashed on the THREAD POOL, which is what 0.0.26 is for. `hash`,
-    # `hashStrong` and `check` answer promises now: the derivation is deliberately a
-    # tenth of a second, and on the loop that was a tenth of a second in which the
-    # server answered nobody.
+    # A password hashed on the THREAD POOL, which 0.0.26 was for and which 0.0.32
+    # MOVED: `slate:password` is gone, and Argon2id is `slate:crypto`'s under names
+    # that say which algorithm they are. So this is the release's breaking change and
+    # the assertion that a binary one release behind fails -- there the import names a
+    # module that no longer exists there, and here it names one that did not have it.
     #
-    # The `await`s are what a binary one release behind would fail on -- there `hash`
-    # answers the record itself, so `check` would be handed a promise and refuse it by
-    # name. And a round trip rather than a fixed vector, because the salt is sixteen
-    # fresh bytes from the kernel per call: two records of one password differ, and
-    # each verifies only its own.
+    # The derivation is deliberately a tenth of a second, which on the loop was a tenth
+    # of a second in which the server answered nobody; both names answer promises, and
+    # the `await`s are the other half of what is pinned here.
+    #
+    # A round trip rather than a fixed vector, because the salt is sixteen fresh bytes
+    # from the kernel per call: two records of one password differ and each verifies
+    # only its own. The PHC prefix is checked because it is the byte format 0.0.32
+    # promises it did NOT change -- a record written by 0.0.31 has to keep verifying.
     (testpath/"login.sl").write <<~SLATE
-      import { hash, check, needsRehash } from slate:password
+      import { argon2, argon2Verify, argon2NeedsRehash } from slate:crypto
 
       async main()
-          val stored = await hash("correct horse")
+          val stored = await argon2("correct horse")
 
-          print(startsWith(stored, "$argon2id$"))
-          print(await check(stored, "correct horse"))
-          print(await check(stored, "wrong"))
-          print(needsRehash(stored))
+          print(startsWith(stored, "$argon2id$v=19$m=19456,t=2,p=1$"))
+          print(await argon2Verify(stored, "correct horse"))
+          print(await argon2Verify(stored, "wrong"))
+          print(argon2NeedsRehash(stored))
 
       main()
     SLATE
@@ -1162,5 +1166,74 @@ class Slate < Formula
                  "xyz xyz xyz xyz xyz xyz\n" \
                  "v null\n",
                  shell_output("#{bin}/slate #{testpath}/u31.sl")
+
+    # 0.0.32's security fix, which is what this release is for: `files(root)` judged
+    # each part of a request path BEFORE percent-decoding it, so `/%2e%2e/x` and
+    # `/..%2fx` climbed out of the root and were served with a 200.
+    #
+    # **The request line is written onto a socket rather than fetched**, because no URL
+    # parser will build either of these -- it resolves `..` and reads `%2e%2e` as a
+    # dotted segment before a byte reaches the network, which is why `curl` needs
+    # `--path-as-is`. A client that cannot ask the question cannot check the answer.
+    #
+    # The file above the root holds LEAKED and every line says whether it came back, so
+    # a refusal is checked against the thing it was refusing rather than against its own
+    # status line alone -- and the file UNDER the root is asked for first, so a binary
+    # that answered 403 to everything would fail here rather than pass.
+    (testpath/"pub").mkpath
+
+    (testpath/"u32.sl").write <<~SLATE
+      import { connect, onData, send, close, localPort } from slate:net
+      import { serve, files, close as shutServer } from slate:http
+      import { writeFileSync } from slate:fs
+
+      writeFileSync("#{testpath}/pub/a.txt", "under the root")
+      writeFileSync("#{testpath}/secret.txt", "LEAKED")
+
+      async ask(port, target)
+          val dialled = await connect("127.0.0.1", port)
+          val c = dialled.value
+          var got = ""
+          var ended = false
+
+          onData(c, chunk ->
+              if chunk == null
+                  close(c)
+                  ended = true
+              else
+                  got = got + chunk)
+
+          await send(c, "GET " + target + " HTTP/1.1\\r\\nHost: h\\r\\nConnection: close\\r\\n\\r\\n")
+
+          var turns = 0
+
+          while !ended && turns < 400
+              await sleep(10)
+              turns = turns + 1
+
+          got
+
+      said(answer) =
+          val line = split(answer, "\\r\\n")[0]
+
+          if contains(answer, "LEAKED") then line + " LEAKED" else line
+
+      async main()
+          val server = serve(0, files("#{testpath}/pub"))
+          val port = localPort(server)
+
+          print(said(await ask(port, "/a.txt")))
+          print(said(await ask(port, "/%2e%2e/secret.txt")))
+          print(said(await ask(port, "/..%2fsecret.txt")))
+
+          shutServer(server)
+
+      main()
+    SLATE
+
+    assert_equal "HTTP/1.1 200 OK\n" \
+                 "HTTP/1.1 403 Forbidden\n" \
+                 "HTTP/1.1 403 Forbidden\n",
+                 shell_output("#{bin}/slate #{testpath}/u32.sl")
   end
 end
