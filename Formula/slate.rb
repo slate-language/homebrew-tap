@@ -1,7 +1,7 @@
 class Slate < Formula
   desc "Small indentation-structured, garbage-collected language, written in sysl"
   homepage "https://github.com/slate-language/slate"
-  version "0.0.27"
+  version "0.0.28"
   license "ISC"
 
   # macOS on Apple silicon is the only build there is. sysl does not cross-compile,
@@ -12,7 +12,7 @@ class Slate < Formula
   on_macos do
     on_arm do
       url "https://github.com/slate-language/slate/releases/download/v#{version}/slate-#{version}-darwin-arm64.tar.gz"
-      sha256 "3a4e3240529eee7208f2917b36d6ba465297e0065f30b2d8a20286689f407fbb"
+      sha256 "4a0c81b305baff77c07d803b6954606a1349c3c92c49a74bcd4d9d7630a02c59"
     end
   end
 
@@ -1019,5 +1019,35 @@ class Slate < Formula
     assert_equal "31 139 true\ntrue\n" \
                  "this does not begin with gzip's two magic bytes, so it is not a gzip stream\n",
                  shell_output("#{bin}/slate #{testpath}/gz.sl")
+
+    # `slate:url`, which is what 0.0.28 is for -- a module that did not exist before,
+    # so a binary built from the wrong commit fails here at the IMPORT rather than at
+    # an assertion, which is exactly the failure this release could have.
+    #
+    # The percent-coder and the `name=value` grammar were `slate:http`'s and moved down
+    # a layer because a browser page importing that module to reach two functions grew
+    # by 239 KB -- a file server and an HTTP/2 speaker, downloaded to read a query
+    # string. `slate:http` still exports all four, and the last line asserts that: a
+    # move that had quietly broken the old spelling would pass everything above it.
+    #
+    # `%C3%A9` is two bytes that are one character, so it is the input that separates a
+    # decoder collecting BYTES from one working a character at a time.
+    (testpath/"url.sl").write <<~SLATE
+      import { parseQuery, percentDecode, encodeComponent } from slate:url
+      import { parseQuery as httpQuery } from slate:http
+
+      val q = parseQuery("name=Ada+Lovelace&tag=caf%C3%A9&a=1&a=2")
+
+      print(q.name, q.tag, q.a)
+      print(percentDecode("/who/caf%C3%A9", false))
+      print(encodeComponent("a b/c?d=e&f"))
+      print(httpQuery("x=1&y=two+words").y)
+    SLATE
+
+    assert_equal "Ada Lovelace café 2\n" \
+                 "/who/café\n" \
+                 "a%20b%2Fc%3Fd%3De%26f\n" \
+                 "two words\n",
+                 shell_output("#{bin}/slate #{testpath}/url.sl")
   end
 end
