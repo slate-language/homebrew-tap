@@ -1,7 +1,7 @@
 class Slate < Formula
   desc "Small indentation-structured, garbage-collected language, written in sysl"
   homepage "https://github.com/slate-language/slate"
-  version "0.0.29"
+  version "0.0.30"
   license "ISC"
 
   # macOS on Apple silicon is the only build there is. sysl does not cross-compile,
@@ -12,7 +12,7 @@ class Slate < Formula
   on_macos do
     on_arm do
       url "https://github.com/slate-language/slate/releases/download/v#{version}/slate-#{version}-darwin-arm64.tar.gz"
-      sha256 "fb35a223352e52d08873bc45fe9be205f9cd55e5021f567fa8e7607aa1e3f496"
+      sha256 "482b95b9a90fc45bef12bfeb3a6d7cac2c5f85f3e70486d39c6abedf5f69f200"
     end
   end
 
@@ -1080,5 +1080,31 @@ class Slate < Formula
                  "true foobar\n" \
                  "`*` is not a base64url character\n",
                  shell_output("#{bin}/slate #{testpath}/b64.sl")
+
+    # An ASSET IMPORT, which is what 0.0.30 is for. It is the one thing here that needs a
+    # SECOND FILE beside the program, so a binary built from the wrong commit fails at the
+    # import rather than at an assertion -- and the file is read while the program is
+    # compiled, so what this proves is that the shipped binary reads it at all.
+    #
+    # `without` rides along because it is the release's other new name and costs a line.
+    (testpath/"panel.css").write ".panel { display: grid; }\n"
+
+    (testpath/"assets.sl").write <<~SLATE
+      import styles from "./panel.css"
+
+      print(len(styles), trim(styles))
+      print(without({ a: 1, b: 2 }, "a"))
+    SLATE
+
+    assert_equal "26 .panel { display: grid; }\n{b: 2}\n",
+                 shell_output("#{bin}/slate #{testpath}/assets.sl")
+
+    # And the REFUSAL, which is the half a binary could get wrong while running the program
+    # above: the extension is the whole rule, so a `.css` asked for names has to say so
+    # rather than being handed to the lexer and reported as a syntax error in somebody's CSS.
+    (testpath/"wrong.sl").write "import { helper } from \"./panel.css\"\n"
+
+    assert_match "is not slate source, so there are no names in it to take",
+                 shell_output("#{bin}/slate #{testpath}/wrong.sl", 1)
   end
 end
