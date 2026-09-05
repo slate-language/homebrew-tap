@@ -1,7 +1,7 @@
 class Slate < Formula
   desc "Small indentation-structured, garbage-collected language, written in sysl"
   homepage "https://github.com/slate-language/slate"
-  version "0.0.26"
+  version "0.0.27"
   license "ISC"
 
   # macOS on Apple silicon is the only build there is. sysl does not cross-compile,
@@ -12,7 +12,7 @@ class Slate < Formula
   on_macos do
     on_arm do
       url "https://github.com/slate-language/slate/releases/download/v#{version}/slate-#{version}-darwin-arm64.tar.gz"
-      sha256 "58b7eb226289e3ea1904ab4db08c7c0458bae318d8915bfd563819193e709bc2"
+      sha256 "3a4e3240529eee7208f2917b36d6ba465297e0065f30b2d8a20286689f407fbb"
     end
   end
 
@@ -985,5 +985,39 @@ class Slate < Formula
 
     assert_match "`T` is integer from an argument before this one, and this is string",
                  shell_output("#{bin}/slate #{testpath}/pair.sl", 1)
+
+    # `slate:gzip`, which is what 0.0.27 is for -- the compression a browser has where
+    # brotli is not, and the reason the release exists. The ROUND TRIP is asserted
+    # rather than the refusal alone: it is the compressor being present that a broken
+    # build would lose, and a test that proves less to avoid one `async main()` is the
+    # wrong trade.
+    #
+    # **Every name here answers a PROMISE on both back ends**, `CompressionStream` being
+    # a stream with no synchronous door -- so this is the first block here that awaits
+    # anything, which is worth seeing work in a real install.
+    #
+    # The two magic bytes are pinned rather than the stream: two deflate implementations
+    # agree about the format and not about the bytes, so a length or a byte sequence
+    # would be asserting on the compressor's mood. The refusal is the other half -- the
+    # gzip container is parsed by slate rather than by the host, so it is slate's own
+    # sentence that has to come back.
+    (testpath/"gz.sl").write <<~SLATE
+      import { gzip, gunzip } from slate:gzip
+
+      async main()
+          val text = repeat("slate compresses this. ", 40)
+          val small = await gzip(text)
+          val back = await gunzip(small, 65536)
+
+          print(small[0], small[1], len(small) < len(toBytes(text)))
+          print(fromBytes(back.value).value == text)
+          print((await gunzip(toBytes("this is plainly not a gzip stream at all"), 4096)).error)
+
+      main()
+    SLATE
+
+    assert_equal "31 139 true\ntrue\n" \
+                 "this does not begin with gzip's two magic bytes, so it is not a gzip stream\n",
+                 shell_output("#{bin}/slate #{testpath}/gz.sl")
   end
 end
