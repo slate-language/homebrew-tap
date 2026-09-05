@@ -1,7 +1,7 @@
 class Slate < Formula
   desc "Small indentation-structured, garbage-collected language, written in sysl"
   homepage "https://github.com/slate-language/slate"
-  version "0.0.28"
+  version "0.0.29"
   license "ISC"
 
   # macOS on Apple silicon is the only build there is. sysl does not cross-compile,
@@ -12,7 +12,7 @@ class Slate < Formula
   on_macos do
     on_arm do
       url "https://github.com/slate-language/slate/releases/download/v#{version}/slate-#{version}-darwin-arm64.tar.gz"
-      sha256 "4a0c81b305baff77c07d803b6954606a1349c3c92c49a74bcd4d9d7630a02c59"
+      sha256 "fb35a223352e52d08873bc45fe9be205f9cd55e5021f567fa8e7607aa1e3f496"
     end
   end
 
@@ -1049,5 +1049,36 @@ class Slate < Formula
                  "a%20b%2Fc%3Fd%3De%26f\n" \
                  "two words\n",
                  shell_output("#{bin}/slate #{testpath}/url.sl")
+
+    # base64url, which is what 0.0.29 is for. It joins `slate:url`, so a binary built
+    # from the wrong commit fails at the IMPORT rather than at an assertion -- which
+    # is exactly the failure a release adding two names to an existing module has.
+    #
+    # RFC 4648 SS10's own vectors rather than a round trip: an encoder that agreed
+    # with its own decoder and with nothing else would pass a round trip happily and
+    # write tokens nobody else can read. The `-_` line is the two characters that are
+    # the whole difference from base64, and they are the two a URL would otherwise
+    # have to percent-encode.
+    #
+    # The refusal is asserted too, because the decoder answers a RESULT rather than
+    # faulting -- text encoded this way arrives from outside -- and the sentence names
+    # the character, which is the half a binary could lose while still decoding.
+    (testpath/"b64.sl").write <<~SLATE
+      import { base64urlEncode, base64urlDecode } from slate:url
+
+      print(base64urlEncode("foobar"), base64urlEncode("fooba"), base64urlEncode("f"))
+      print(base64urlEncode([251, 255]), base64urlEncode([255, 255, 255]))
+
+      val r = base64urlDecode("Zm9vYmFy")
+
+      print(r.ok, fromBytes(r.value).value)
+      print(base64urlDecode("ab*d").error)
+    SLATE
+
+    assert_equal "Zm9vYmFy Zm9vYmE Zg\n" \
+                 "-_8 ____\n" \
+                 "true foobar\n" \
+                 "`*` is not a base64url character\n",
+                 shell_output("#{bin}/slate #{testpath}/b64.sl")
   end
 end
