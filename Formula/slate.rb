@@ -1,7 +1,7 @@
 class Slate < Formula
   desc "Small indentation-structured, garbage-collected language, written in sysl"
   homepage "https://github.com/slate-language/slate"
-  version "0.0.33"
+  version "0.0.34"
   license "ISC"
 
   # macOS on Apple silicon is the only build there is. sysl does not cross-compile,
@@ -12,7 +12,7 @@ class Slate < Formula
   on_macos do
     on_arm do
       url "https://github.com/slate-language/slate/releases/download/v#{version}/slate-#{version}-darwin-arm64.tar.gz"
-      sha256 "7840168a7bdb55f21c3e89d2ce1c2420928e299bb0c6a8f36bf20e58d073fa0b"
+      sha256 "18c6cf0a6a84b21750984b5c54fabf536acf0a94b96c3c6dfbbcda029b2461d3"
     end
   end
 
@@ -1285,5 +1285,28 @@ class Slate < Formula
     SLATE
 
     assert_match "2 passed", shell_output("#{bin}/slate test #{testpath}/u33.sl")
+
+    # 0.0.34's class properties and symbol-named operator methods, which is what this
+    # release is for: a `get` reads with no brackets, and `+`/`==` are ordinary members
+    # looked up by name on the left operand rather than word-shaped hooks.
+    (testpath/"u34.sl").write <<~SLATE
+      class Vec
+          var x
+          var y
+
+          get magnitudeSquared(self) = self.x * self.x + self.y * self.y
+
+          +(self, other) = Vec.new(self.x + other.x, self.y + other.y)
+
+          ==(self, other) = self.x == other.x && self.y == other.y
+
+      val a = Vec.new(1, 2)
+      val b = Vec.new(3, 4)
+      val c = a + b
+
+      print(c.x, c.y, c.magnitudeSquared, c == Vec.new(4, 6))
+    SLATE
+
+    assert_equal "4 6 52 true\n", shell_output("#{bin}/slate #{testpath}/u34.sl")
   end
 end
