@@ -12,7 +12,7 @@ class Slate < Formula
   on_macos do
     on_arm do
       url "https://github.com/slate-language/slate/releases/download/v#{version}/slate-#{version}-darwin-arm64.tar.gz"
-      sha256 "7a8a1de9b0099094b2859e029e606073e298a0dd6b7400abcc6eda8f77659bc"
+      sha256 "7a8a1de9b0099094b2859e029e606073e298a0dd6b7400abcc6eda8f77659bcf"
     end
   end
 
