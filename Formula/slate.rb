@@ -1,7 +1,7 @@
 class Slate < Formula
   desc "Small indentation-structured, garbage-collected language, written in sysl"
   homepage "https://github.com/slate-language/slate"
-  version "0.0.32"
+  version "0.0.33"
   license "ISC"
 
   # macOS on Apple silicon is the only build there is. sysl does not cross-compile,
@@ -12,7 +12,7 @@ class Slate < Formula
   on_macos do
     on_arm do
       url "https://github.com/slate-language/slate/releases/download/v#{version}/slate-#{version}-darwin-arm64.tar.gz"
-      sha256 "52e317a11c765ca4d60696a7866819eef6166aa59b6950fbdcfd9a2dbe2fbca8"
+      sha256 "7840168a7bdb55f21c3e89d2ce1c2420928e299bb0c6a8f36bf20e58d073fa0b"
     end
   end
 
@@ -1235,5 +1235,55 @@ class Slate < Formula
                  "HTTP/1.1 403 Forbidden\n" \
                  "HTTP/1.1 403 Forbidden\n",
                  shell_output("#{bin}/slate #{testpath}/u32.sl")
+
+    # 0.0.33's test-hook scope, which is what this release is for: a `@setup`, the test
+    # it prepared and its `@teardown` were three separate event-loop scopes, and neither
+    # of the two things a hook exists to do worked across them.
+    #
+    # **The first assertion is worth a formula's time because its failure is a HANG, not
+    # a wrong answer.** A listener opened in a setup used to wait forever on a handle
+    # that never closes on its own, with nothing printed -- so a binary carrying the old
+    # runner does not fail this test quickly, it stops answering, which is exactly what
+    # an install nobody checked would do to a user's own suite.
+    #
+    # The timer is the other half and points the other way: armed in the body and cleared
+    # by the teardown, it fires three seconds later on a runner that lets the loop settle
+    # before the teardown runs -- so a passing run here is also a run that did NOT take
+    # three seconds waiting for something it was about to cancel.
+    (testpath/"u33.sl").write <<~SLATE
+      import { listen, connect, close, localPort } from slate:net
+
+      var server = null
+      var armed = null
+
+      @setup
+      open_a_listener() =
+          armed = null
+          server = listen(0, conn -> close(conn))
+
+      @teardown
+      give_back_what_the_test_took() =
+          if armed != null then clearTimeout(armed)
+
+          close(server)
+
+      @test
+      async a_listener_opened_in_a_setup_is_on_the_bodys_loop() =
+          val dialled = await connect("127.0.0.1", localPort(server))
+
+          assert(dialled.ok, "the body reached what the setup opened")
+          close(dialled.value)
+
+      never() =
+          throw "a timer the teardown was going to clear went off"
+
+      @test
+      a_timer_armed_in_the_body_is_cleared_by_the_teardown() =
+          armed = setTimeout(never, 3000)
+
+          assert(armed != null, "a timer answers the id that cancels it")
+    SLATE
+
+    assert_match "2 passed", shell_output("#{bin}/slate test #{testpath}/u33.sl")
   end
 end
