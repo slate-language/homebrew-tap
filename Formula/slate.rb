@@ -1,7 +1,7 @@
 class Slate < Formula
   desc "Small indentation-structured, garbage-collected language, written in sysl"
   homepage "https://github.com/slate-language/slate"
-  version "0.0.35"
+  version "0.0.36"
   license "ISC"
 
   # macOS on Apple silicon is the only build there is. sysl does not cross-compile,
@@ -12,7 +12,7 @@ class Slate < Formula
   on_macos do
     on_arm do
       url "https://github.com/slate-language/slate/releases/download/v#{version}/slate-#{version}-darwin-arm64.tar.gz"
-      sha256 "c62e1e7e01ec19d628d6215e1a93668c14297e14d95a519854a834cbcf12bb5a"
+      sha256 "7e10f542c87229fda26c2edaae8674fdfd3f386a5cb14ff5507a4bbbe894679a"
     end
   end
 
@@ -1335,5 +1335,21 @@ class Slate < Formula
     SLATE
 
     assert_equal "3 3 2 written over interpreter\n", shell_output("#{bin}/slate #{testpath}/u35.sl")
+
+    # 0.0.36's fix, which is what this release is for: the JavaScript runtime called
+    # the host's `fetch` as a method of its own host record, and a browser's `fetch`
+    # refuses any receiver but the window with `TypeError: Illegal invocation` -- so
+    # every `fetch` a slate program made in a page was refused before a request left
+    # it, while node, whose `fetch` never looks at its receiver, hid the defect from
+    # every test written against it.
+    #
+    # **What is asserted is the EMITTED JAVASCRIPT rather than a call's answer**,
+    # because there is no browser in a brew test and node's own `fetch` passes
+    # whether or not the fix is there -- the fix is that the runtime now hands the
+    # host record `fetch.bind(globalThis)` rather than the bare function, and that
+    # bound call is what a receiver-checking host would accept.
+    (testpath/"fetchbind.sl").write "print(1)\n"
+
+    assert_match "fetch.bind(globalThis)", shell_output("#{bin}/slate js #{testpath}/fetchbind.sl")
   end
 end
