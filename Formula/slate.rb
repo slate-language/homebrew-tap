@@ -256,7 +256,9 @@ class Slate < Formula
     REPORT
 
     # `array of T`, a rest parameter and an operator a class answers for, which is what 0.0.8 is
-    # for. All three in one program, because each is a different part of the binary and any one
+    # for. The operator is spelled by its SYMBOL (`+`, `<=>`) since 0.0.34, when the method-name
+    # hooks (`plus`, `compare`) stopped being operator dispatch; this test was still written the old
+    # way and first failed under `brew test` at 0.0.37. All three in one program, because each is a different part of the binary and any one
     # could be missing while the others work: `array of T` is a pattern node and a matcher,
     # `...rest` is the parser plus the gather every call path shares, and an operator hook is a
     # lookup `arith` only reaches after everything else has declined.
@@ -270,8 +272,8 @@ class Slate < Formula
       class Money
           var cents
 
-          plus(self, o) = Money(self.cents + o.cents)
-          compare(self, o) = self.cents - o.cents
+          +(self, o) = Money(self.cents + o.cents)
+          <=>(self, o) = self.cents - o.cents
 
       total(first, ...rest) =
           var sum = first
