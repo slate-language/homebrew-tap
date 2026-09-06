@@ -1,7 +1,7 @@
 class Slate < Formula
   desc "Small indentation-structured, garbage-collected language, written in sysl"
   homepage "https://github.com/slate-language/slate"
-  version "0.0.36"
+  version "0.0.37"
   license "ISC"
 
   # macOS on Apple silicon is the only build there is. sysl does not cross-compile,
@@ -12,7 +12,7 @@ class Slate < Formula
   on_macos do
     on_arm do
       url "https://github.com/slate-language/slate/releases/download/v#{version}/slate-#{version}-darwin-arm64.tar.gz"
-      sha256 "7e10f542c87229fda26c2edaae8674fdfd3f386a5cb14ff5507a4bbbe894679a"
+      sha256 "0cd74f972ba61b59c73dd62899685f2cdc3bcc1eb051f0bca003c3c9142bd3fc"
     end
   end
 
@@ -1351,5 +1351,19 @@ class Slate < Formula
     (testpath/"fetchbind.sl").write "print(1)\n"
 
     assert_match "fetch.bind(globalThis)", shell_output("#{bin}/slate js #{testpath}/fetchbind.sl")
+
+    # 0.0.37's `focus`, `blur` and `activeElement` in `slate:dom`, which is what this
+    # release is for: mortar's Confirm dialog needs to move focus to itself and give it
+    # back. There is no document in a brew test, so the REFUSAL is what is asserted, and
+    # it names the CALL rather than the module -- `no_document` is the one arm behind
+    # every name in the module, and the sentence says which command was the mistake.
+    (testpath/"u37.sl").write <<~SLATE
+      import { activeElement } from slate:dom
+
+      activeElement()
+    SLATE
+
+    assert_match "`activeElement` needs a document, and the interpreter has none",
+                 shell_output("#{bin}/slate #{testpath}/u37.sl", 1)
   end
 end
