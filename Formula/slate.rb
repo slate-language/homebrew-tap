@@ -1,7 +1,7 @@
 class Slate < Formula
   desc "Small indentation-structured, garbage-collected language, written in sysl"
   homepage "https://github.com/slate-language/slate"
-  version "0.0.34"
+  version "0.0.35"
   license "ISC"
 
   # macOS on Apple silicon is the only build there is. sysl does not cross-compile,
@@ -12,7 +12,7 @@ class Slate < Formula
   on_macos do
     on_arm do
       url "https://github.com/slate-language/slate/releases/download/v#{version}/slate-#{version}-darwin-arm64.tar.gz"
-      sha256 "18c6cf0a6a84b21750984b5c54fabf536acf0a94b96c3c6dfbbcda029b2461d3"
+      sha256 "c62e1e7e01ec19d628d6215e1a93668c14297e14d95a519854a834cbcf12bb5a"
     end
   end
 
@@ -63,7 +63,7 @@ class Slate < Formula
       #!#{bin}/slate
       import { args, exit } from slate:process
 
-      if args.len() == 0
+      if args.length == 0
           print("usage: greet <name>...")
           exit(2)
 
@@ -144,7 +144,7 @@ class Slate < Formula
       hex(bs) = bs.map(b -> "0123456789abcdef"[b >> 4] + "0123456789abcdef"[b & 15]).join("")
 
       print(hex(sha256("abc")))
-      print(len(randomBytes(16)))
+      print(randomBytes(16).length)
     SLATE
 
     assert_equal "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad\n16\n",
@@ -376,7 +376,7 @@ class Slate < Formula
       t[[1, 2]] = "array key"
       t[{ a: 1 }] = "object key"
 
-      print(t[[1, 2]], t[{ a: 1 }], len(t), keys(t))
+      print(t[[1, 2]], t[{ a: 1 }], keys(t).length, keys(t))
 
       // A diagnostic renders a value WITHOUT the class's own `toString`, where the
       // program renders it with one. Both back ends draw that line in the same place.
@@ -577,7 +577,7 @@ class Slate < Formula
     # form is the one that said nothing before -- `xs.map(f)` is `map(xs, f)` to the interpreter and
     # was a field read off an array to the checker.
     (testpath/"elements.sl").write <<~SLATE
-      f(xs: array of string) = len(xs)
+      f(xs: array of string) = xs.length
 
       h(ns: array of integer) = f(ns.filter(n -> n > 1))
 
@@ -697,7 +697,7 @@ class Slate < Formula
 
       first[T](xs: array of T) -> T = xs[0]
       apply(f: integer -> integer) -> integer = f(1)
-      keep(xs: array of (string | null)) = len(xs)
+      keep(xs: array of (string | null)) = xs.length
       show(p: Pair[string, integer]) = s"${p.first}=${p.second}"
 
       val tags: array of string = ["reading", "writing"]
@@ -751,7 +751,7 @@ class Slate < Formula
       pump(from, to)
           val bytes = h2Send(from)
 
-          if len(bytes) > 0 then h2Receive(to, bytes)
+          if bytes.length > 0 then h2Receive(to, bytes)
 
       seen(who)
           var out = []
@@ -891,7 +891,7 @@ class Slate < Formula
           pump()
               val out = h2Send(h)
 
-              if len(out) > 0 then send(c, out)
+              if out.length > 0 then send(c, out)
 
           var body = ""
           var kind = ""
@@ -1019,7 +1019,7 @@ class Slate < Formula
           val small = await gzip(text)
           val back = await gunzip(small, 65536)
 
-          print(small[0], small[1], len(small) < len(toBytes(text)))
+          print(small[0], small[1], small.length < toBytes(text).length)
           print(fromBytes(back.value).value == text)
           print((await gunzip(toBytes("this is plainly not a gzip stream at all"), 4096)).error)
 
@@ -1102,7 +1102,7 @@ class Slate < Formula
     (testpath/"assets.sl").write <<~SLATE
       import styles from "./panel.css"
 
-      print(len(styles), trim(styles))
+      print(styles.length, trim(styles))
       print(without({ a: 1, b: 2 }, "a"))
     SLATE
 
@@ -1308,5 +1308,32 @@ class Slate < Formula
     SLATE
 
     assert_equal "4 6 52 true\n", shell_output("#{bin}/slate #{testpath}/u34.sl")
+
+    # 0.0.35's `.length` property and Set/Map, which is what this release is for: the
+    # global `len(x)` free function is gone, so a string, an array and a range answer
+    # their own count through `.length` instead. `Set` and `Map` are the other half --
+    # JS-shaped collections where a class's own `==`/`hash` decide membership, so a
+    # `Point` with no identity beyond its fields still de-duplicates in a `Set` and
+    # still overwrites its own key in a `Map`.
+    (testpath/"u35.sl").write <<~SLATE
+      class Point
+          var x
+          var y
+
+          ==(self, o) = o is Point && o.x == self.x && o.y == self.y
+          hash(self) = self.x * 31 + self.y
+
+      val s = Set()
+      s.add(Point(1, 2))
+      s.add(Point(1, 2))
+      s.add(Point(3, 4))
+
+      val m = Map()
+      m.set(Point(1, 2), "written over")
+
+      print("abc".length, [1, 2, 3].length, s.size, m.get(Point(1, 2)), host())
+    SLATE
+
+    assert_equal "3 3 2 written over interpreter\n", shell_output("#{bin}/slate #{testpath}/u35.sl")
   end
 end
