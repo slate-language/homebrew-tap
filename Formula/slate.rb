@@ -394,13 +394,14 @@ class Slate < Formula
     # What 0.0.12 is for: ONE suite, run by both back ends, out of this one binary.
     #
     # The four assertions in it are the divergences that release closed, one apiece:
-    # ASCII case, a mutator answering nothing, `fromBytes` answering a result, and a
-    # real surviving a JSON round trip as a real. They are asserted against the
+    # case (ASCII-only then; Unicode-aware since 0.0.35, so the test now pins `é` → `É`
+    # — the old pin failed under `brew test` at 0.0.37), a mutator answering nothing,
+    # `fromBytes` answering a result, and a real surviving a JSON round trip as a real. They are asserted against the
     # INTERPRETER here; the `--js` half moved down to 0.0.14's assertion, which needs
     # node and says so when there is none.
     (testpath/"both.sl").write <<~SLATE
       @test
-      case_is_ascii_only() = assertEq(upper("h\u{e9}llo"), "H\u{e9}LLO")
+      case_is_unicode_aware() = assertEq(upper("h\u{e9}llo"), "H\u{c9}LLO")
 
       @test
       a_mutator_answers_nothing() =
