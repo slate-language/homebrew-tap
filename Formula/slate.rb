@@ -1,18 +1,28 @@
 class Slate < Formula
   desc "Small indentation-structured, garbage-collected language, written in sysl"
   homepage "https://github.com/slate-language/slate"
-  version "0.0.40"
+  version "0.0.42"
   license "ISC"
 
-  # macOS on Apple silicon is the only build there is. sysl does not cross-compile,
-  # so a Linux binary has to be built on Linux, and nothing does that yet -- there
-  # is no CI workflow for it. Rather than offer an install that cannot run, this
-  # names the one platform it has; everywhere else, build from source, which is a
-  # clone and one `sysl build .`.
+  # macOS on Apple silicon, and Linux on both x86_64 and arm64 -- built on Ubuntu
+  # runners by `.github/workflows/release-linux.yml` since sysl does not
+  # cross-compile. Everywhere else, build from source, which is a clone and one
+  # `sysl build .`.
   on_macos do
     on_arm do
       url "https://github.com/slate-language/slate/releases/download/v#{version}/slate-#{version}-darwin-arm64.tar.gz"
-      sha256 "ad0847f8b90fb3a2fca62e801ccb8229c5bcbe42e62ad12a2ae551007c97e656"
+      sha256 "52ebd82efa9a964b0d20fb0cbcefbc92922da09d6849275954c7587ed8285f26"
+    end
+  end
+
+  on_linux do
+    on_intel do
+      url "https://github.com/slate-language/slate/releases/download/v#{version}/slate-#{version}-linux-x86_64.tar.gz"
+      sha256 "26ba4341a9a622c2767ae30c4f0826fea3d14024e661264a39cf4a1f39397f69"
+    end
+    on_arm do
+      url "https://github.com/slate-language/slate/releases/download/v#{version}/slate-#{version}-linux-arm64.tar.gz"
+      sha256 "6a408e5f75dfec0137e6e9cc4eefc72ffe97b00f2068bd7d108442c88c68c902"
     end
   end
 
