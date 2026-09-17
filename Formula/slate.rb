@@ -1,7 +1,7 @@
 class Slate < Formula
   desc "Small indentation-structured, garbage-collected language, written in sysl"
   homepage "https://github.com/slate-language/slate"
-  version "0.0.49"
+  version "0.0.50"
   license "ISC"
 
   # macOS on Apple silicon, and Linux on both x86_64 and arm64 -- built on Ubuntu
@@ -11,18 +11,18 @@ class Slate < Formula
   on_macos do
     on_arm do
       url "https://github.com/slate-language/slate/releases/download/v#{version}/slate-#{version}-darwin-arm64.tar.gz"
-      sha256 "1bf727bd9f872e46bf8db98bd9241f73f8da4baaf230005b313b955068efc36c"
+      sha256 "d8fd538672afa14e096782de008d791a61c507b5154284fe06a9cbeb69b4eaa5"
     end
   end
 
   on_linux do
     on_intel do
       url "https://github.com/slate-language/slate/releases/download/v#{version}/slate-#{version}-linux-x86_64.tar.gz"
-      sha256 "bf65900478b15a2b366d8a82c9b866005ca24e5aa9be0a43a2bfebfd1c55cd78"
+      sha256 "1b08193a0fd92d379abc54d630f471c2eec5221082bd0015137a7c8b5da7f3bf"
     end
     on_arm do
       url "https://github.com/slate-language/slate/releases/download/v#{version}/slate-#{version}-linux-arm64.tar.gz"
-      sha256 "cfc2c01bf895b0b584c0d64efdd68ae273ab7dadddc5051a2e9ddf9e460335a3"
+      sha256 "2b79cb46c0dbfd75b3c90dd9424fceb2ad44086103c4f3c17818c91334de568f"
     end
   end
 
