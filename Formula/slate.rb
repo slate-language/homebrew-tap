@@ -1,7 +1,7 @@
 class Slate < Formula
   desc "Small indentation-structured, garbage-collected language, written in sysl"
   homepage "https://github.com/slate-language/slate"
-  version "0.0.52"
+  version "0.0.53"
   license "ISC"
 
   # macOS on Apple silicon, and Linux on both x86_64 and arm64 -- built on Ubuntu
@@ -11,18 +11,18 @@ class Slate < Formula
   on_macos do
     on_arm do
       url "https://github.com/slate-language/slate/releases/download/v#{version}/slate-#{version}-darwin-arm64.tar.gz"
-      sha256 "f2607f54261109a473235cb47dd840c32222980f5de199744a252ba2991a9469"
+      sha256 "f04a942c56de069495e949a055a0a66971d60ba0e8ea3b168945cbf22187af39"
     end
   end
 
   on_linux do
     on_intel do
       url "https://github.com/slate-language/slate/releases/download/v#{version}/slate-#{version}-linux-x86_64.tar.gz"
-      sha256 "1c977075fd458dca9f15ba67136e4abadd5a395b869265a0bd58f90aec6b47f4"
+      sha256 "aebded900aba548351e26703164d8ffa08101cdf5a366efcf21e6ee22091f0ce"
     end
     on_arm do
       url "https://github.com/slate-language/slate/releases/download/v#{version}/slate-#{version}-linux-arm64.tar.gz"
-      sha256 "b5f33eb4357012d9ad88ceab2712270bcc7397fe2b501a562ed096939b6d5420"
+      sha256 "26e525ab24b6fdb68a962ce3f913a77f582dfcd9e2e1a84d85f5a0e8d893a15c"
     end
   end
 
@@ -107,7 +107,7 @@ class Slate < Formula
       import { zstd, unzstd } from slate:zstd
       import { compress, decompress } from slate:brotli
 
-      hex(bs) = bs.map(b -> "0123456789abcdef"[b >> 4] + "0123456789abcdef"[b & 15]).join("")
+      hex(bs) = bs.toArray().map(b -> "0123456789abcdef"[b >> 4] + "0123456789abcdef"[b & 15]).join("")
 
       print(hex(sha256("abc")))
       print(regex("(\\\\d+)-(\\\\d+)").find("10-20").groups[2])
