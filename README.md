@@ -12,10 +12,6 @@ brew install slate
 Linux tarballs are built on Linux runners rather than cross-compiled. Everywhere else, build slate
 from source — a clone and `sysl build .`.
 
-**0.0.59 is macOS-only.** Its Linux tarballs failed their own release-time smoke test (a `slate:regex`
-bug — see `Formula/slate.rb`'s note beside the removed `on_linux` block) and were withheld rather than
-shipped broken; Linux is expected back in 0.0.60.
-
 The formula installs the release tarball as a prefix: `bin/slate` and nothing beside it, the standard
 modules being compiled into the executable. It depends on the eight libraries the binary actually
 links — `brotli`, `hiredis`, `libnghttp2`, `libuv`, `lmdb`, `openssl@3`, `webp` and `zstd` — which is
