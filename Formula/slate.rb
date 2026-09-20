@@ -1,32 +1,33 @@
 class Slate < Formula
   desc "Small indentation-structured, garbage-collected language, written in sysl"
   homepage "https://github.com/slate-language/slate"
-  version "0.0.58"
+  version "0.0.59"
   license "ISC"
 
-  # macOS on Apple silicon, and Linux on both x86_64 and arm64 -- built on Ubuntu
-  # runners by `.github/workflows/release-linux.yml` since sysl does not
-  # cross-compile. Everywhere else, build from source, which is a clone and one
-  # `sysl build .`.
+  # macOS on Apple silicon. Linux tarballs are ordinarily built on Ubuntu runners by
+  # `.github/workflows/release-linux.yml`, since sysl does not cross-compile, and
+  # withheld for this one release -- see the note below the macOS block. Everywhere
+  # else, build from source, which is a clone and one `sysl build .`.
   on_macos do
     on_arm do
       url "https://github.com/slate-language/slate/releases/download/v#{version}/slate-#{version}-darwin-arm64.tar.gz"
-      sha256 "819be93f352741f5b15478b68a7dc4bc4afca9a462f7d945ee177828ed80531f"
+      sha256 "9e854e739e4ee1fef59cd34abedec0861db4fbfe3f4e513154491d8ff2957707"
     end
   end
 
-  on_linux do
-    on_intel do
-      url "https://github.com/slate-language/slate/releases/download/v#{version}/slate-#{version}-linux-x86_64.tar.gz"
-      sha256 "d4e6e8b91bb290add0724cf44e5fcc4bbd2e67aa8f7f66768a0636081354a3bf"
-    end
-    on_arm do
-      url "https://github.com/slate-language/slate/releases/download/v#{version}/slate-#{version}-linux-arm64.tar.gz"
-      sha256 "c8c92763e12dfc5041b588287a5364d293e073bca1d9b99286d077a364cc18ad"
-    end
-  end
+  # NO LINUX TARBALL IN 0.0.59. The release-linux workflow's own compat smoke test
+  # -- `regex("(\\d+)-(\\d+)")`, the same call `slate:regex`'s own doc page opens
+  # with -- faulted on every distribution and both architectures with "this is not
+  # a regular expression: extraneous characters at the end", coming from the
+  # libregexp package's `lre_compile` not being handed a NUL-terminated pattern.
+  # It reproduced even where the Linux build's own Gate (`tests/lang`, which
+  # exercises the same call inside `actors.sl`) had just passed, which is the
+  # signature of a bug that depends on what happens to follow the pattern's
+  # buffer in memory rather than on anything the test asserts. Restore this block
+  # -- unchanged in shape, new urls and hashes -- once the fix lands, expected in
+  # 0.0.60.
 
-  # The nine libraries the binary actually links, and the census is `otool -L slate`
+  # The eight libraries the binary actually links, and the census is `otool -L slate`
   # rather than the dependency list in package.hocon -- miniz, monocypher, llhttp, stb
   # and QOI are vendored C and appear in neither the link line nor here, and SQLite is
   # /usr/lib's rather than Homebrew's, so `slate:sqlite` owes this list nothing either.
@@ -40,7 +41,6 @@ class Slate < Formula
   depends_on "libuv"     # the event loop everything asynchronous is built on
   depends_on "lmdb"      # `slate:lmdb` -- the store a session, a bucket and a replay ring live in
   depends_on "openssl@3" # TLS, for `serve` over https and for `fetch`
-  depends_on "pcre2"     # `slate:regex`, which is Perl's dialect rather than POSIX's
   # The formula is `webp`; the library and its pkg-config name are `libwebp`, and naming
   # the library here is a formula brew cannot find.
   depends_on "webp"      # `slate:image`'s WebP half, which stb has never been able to read

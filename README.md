@@ -8,12 +8,16 @@ brew tap slate-language/tap
 brew install slate
 ```
 
-**macOS on Apple silicon only.** sysl does not cross-compile, so a Linux binary has to be built on
-Linux and nothing does that yet; the formula names the one platform it has rather than offering an
-install that cannot run. Everywhere else, build slate from source — a clone and `sysl build .`.
+**macOS on Apple silicon, and Linux on both x86_64 and arm64.** sysl does not cross-compile, so the
+Linux tarballs are built on Linux runners rather than cross-compiled. Everywhere else, build slate
+from source — a clone and `sysl build .`.
+
+**0.0.59 is macOS-only.** Its Linux tarballs failed their own release-time smoke test (a `slate:regex`
+bug — see `Formula/slate.rb`'s note beside the removed `on_linux` block) and were withheld rather than
+shipped broken; Linux is expected back in 0.0.60.
 
 The formula installs the release tarball as a prefix: `bin/slate` and nothing beside it, the standard
-modules being compiled into the executable. It depends on the five libraries the binary actually
-links — `brotli`, `hiredis`, `libuv`, `openssl@3` and `pcre2` — which is read from `otool -L` on the
-shipped binary at each release rather than from slate's own dependency list, most of slate's C being
-vendored and linked statically.
+modules being compiled into the executable. It depends on the eight libraries the binary actually
+links — `brotli`, `hiredis`, `libnghttp2`, `libuv`, `lmdb`, `openssl@3`, `webp` and `zstd` — which is
+read from `otool -L` on the shipped binary at each release rather than from slate's own dependency
+list, most of slate's C being vendored and linked statically.
