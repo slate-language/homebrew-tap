@@ -1,7 +1,7 @@
 class Slate < Formula
   desc "Small indentation-structured, garbage-collected language, written in sysl"
   homepage "https://github.com/slate-language/slate"
-  version "0.1.6"
+  version "0.1.7"
   license "ISC"
 
   # macOS on Apple silicon, and Linux on both x86_64 and arm64 -- built on Ubuntu
@@ -11,39 +11,28 @@ class Slate < Formula
   on_macos do
     on_arm do
       url "https://github.com/slate-language/slate/releases/download/v#{version}/slate-#{version}-darwin-arm64.tar.gz"
-      sha256 "842c01387f1a8d969928b2914f3e599a417e21e2cc32e86e7d7fecf15aad601d"
+      sha256 "3ceceddfd392493a30d6b02a72ea7d481b81711193bfde61fd3838229ac748e7"
     end
   end
 
   on_linux do
     on_intel do
       url "https://github.com/slate-language/slate/releases/download/v#{version}/slate-#{version}-linux-x86_64.tar.gz"
-      sha256 "dd3e9f4f0a96293737c9dd3293e8205508ee2c9b8241921bc3ab46cf9149b2ea"
+      sha256 "c44d7f7d29766238d49c6b1861270e3f91fba99ceab8e1e5aab03aa2ddb65b41"
     end
     on_arm do
       url "https://github.com/slate-language/slate/releases/download/v#{version}/slate-#{version}-linux-arm64.tar.gz"
-      sha256 "391239d140b02010c195dd6cac45c575c5b8a99bbb00385ccc50c7295ccada9d"
+      sha256 "6447c1122ea8d270e68a78f1cdacc67ca84087807463e299e73158363df5d610"
     end
   end
 
-  # The eight libraries the binary actually links, and the census is `otool -L slate`
-  # rather than the dependency list in package.hocon -- miniz, monocypher, llhttp, stb
-  # and QOI are vendored C and appear in neither the link line nor here, and SQLite is
-  # /usr/lib's rather than Homebrew's, so `slate:sqlite` owes this list nothing either.
-  #
-  # A missing one installs cleanly and then fails to start, with a dyld error naming
-  # a path nobody typed, so this list is re-read from the shipped binary at each
+  # No `depends_on` at all, and the census is `otool -L slate`: since 0.1.7 every
+  # library that has an archive is linked statically, so the binary names only
+  # /usr/lib/libSystem.B.dylib and /usr/lib/libsqlite3.dylib, neither of them
+  # Homebrew's. A library added later that has no archive comes back as a dylib line
+  # and owes a `depends_on` here -- a missing one installs cleanly and then fails to
+  # start with a dyld error, so the census is re-read from the shipped binary at each
   # release rather than carried forward.
-  depends_on "brotli"    # `slate:brotli`, and `Content-Encoding: br` on a response
-  depends_on "hiredis"   # `slate:redis` -- the RESP reader; the socket stays slate's
-  depends_on "libnghttp2" # `slate:nghttp2` -- HTTP/2 framing and HPACK, and now `slate:http` over it
-  depends_on "libuv"     # the event loop everything asynchronous is built on
-  depends_on "lmdb"      # `slate:lmdb` -- the store a session, a bucket and a replay ring live in
-  depends_on "openssl@3" # TLS, for `serve` over https and for `fetch`
-  # The formula is `webp`; the library and its pkg-config name are `libwebp`, and naming
-  # the library here is a formula brew cannot find.
-  depends_on "webp"      # `slate:image`'s WebP half, which stb has never been able to read
-  depends_on "zstd"      # `slate:zstd`, and `Content-Encoding: zstd` on a response
 
   def install
     # `bin.install` NAMING THE BINARY, never `prefix.install Dir["*"]` -- brew strips
@@ -97,9 +86,8 @@ class Slate < Formula
     (testpath/"hello.sl").write "print(6 * 7)\n"
     assert_match '$.arith("*", 6n, 7n)', shell_output("#{bin}/slate js #{testpath}/hello.sl")
 
-    # The bound libraries. dyld loads every one at process start, so any program above
-    # already proves the `depends_on` lines; this one CALLS into four of them so a library
-    # that loads but answers wrongly (a version mismatch) is caught too.
+    # The bound libraries, linked into the binary statically. This CALLS into four of
+    # them so a library that links but answers wrongly is caught too.
     (testpath/"libs.sl").write <<~SLATE
       import { sha256 } from slate:crypto
       import { regex } from slate:regex
