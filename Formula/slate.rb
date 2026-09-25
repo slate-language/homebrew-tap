@@ -1,7 +1,7 @@
 class Slate < Formula
   desc "Small indentation-structured, garbage-collected language, written in sysl"
   homepage "https://github.com/slate-language/slate"
-  version "0.1.9"
+  version "0.1.10"
   license "ISC"
 
   # macOS on Apple silicon, and Linux on both x86_64 and arm64 -- built on Ubuntu
@@ -11,18 +11,18 @@ class Slate < Formula
   on_macos do
     on_arm do
       url "https://github.com/slate-language/slate/releases/download/v#{version}/slate-#{version}-darwin-arm64.tar.gz"
-      sha256 "7fd47c398519f26f77a80bc07de718e7f7a32dfbd2fdc75d03eae8a586afe3eb"
+      sha256 "b1f210dc78a5c7e50a6c9e4307befa1bceddc469b583afd7fd473903761ce8ff"
     end
   end
 
   on_linux do
     on_intel do
       url "https://github.com/slate-language/slate/releases/download/v#{version}/slate-#{version}-linux-x86_64.tar.gz"
-      sha256 "c125f52de38b50932f8d8fed19de69492098a105271bcbe2a58a5154864e3cf2"
+      sha256 "1dfb90a9f9ac249166ad919cb24efe3d6f1da1de57762e650293af60be8a33ec"
     end
     on_arm do
       url "https://github.com/slate-language/slate/releases/download/v#{version}/slate-#{version}-linux-arm64.tar.gz"
-      sha256 "5df2960fcaa021f97e780c45337441fca9b7dd8d584b9ce6bfd2db2183dbda03"
+      sha256 "3aca6474201d0a27dc7784f45a81557fe12700d79ec6d26ae24966a2d2840b43"
     end
   end
 
@@ -33,6 +33,9 @@ class Slate < Formula
   # and owes a `depends_on` here -- a missing one installs cleanly and then fails to
   # start with a dyld error, so the census is re-read from the shipped binary at each
   # release rather than carried forward.
+
+  # The desktop edition (`slate-desktop`) installs a binary of the same name.
+  conflicts_with "slate-desktop", because: "both install bin/slate"
 
   def install
     # `bin.install` NAMING THE BINARY, never `prefix.install Dir["*"]` -- brew strips
