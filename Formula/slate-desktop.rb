@@ -1,7 +1,7 @@
 class SlateDesktop < Formula
   desc "Small indentation-structured, garbage-collected language, desktop edition (adds slate:window)"
   homepage "https://github.com/slate-language/slate"
-  version "0.1.11"
+  version "0.1.12"
   license "ISC"
 
   # The desktop edition is slate built with the `desktop` feature list -- the default
@@ -10,7 +10,7 @@ class SlateDesktop < Formula
   on_macos do
     on_arm do
       url "https://github.com/slate-language/slate/releases/download/v#{version}/slate-desktop-#{version}-darwin-arm64.tar.gz"
-      sha256 "789efa2576299170034d53a03838a610c950b11ee226d48245c775da2559dc80"
+      sha256 "9e3f4729fd5d2838a888d7ad1b6c730742fc208c349c752c18fce258bdd6a4d2"
     end
 
     # The census (`otool -L slate`) is the standard edition's two system lines plus
@@ -27,11 +27,11 @@ class SlateDesktop < Formula
   on_linux do
     on_intel do
       url "https://github.com/slate-language/slate/releases/download/v#{version}/slate-desktop-#{version}-linux-x86_64.tar.gz"
-      sha256 "PENDING-slate-desktop-linux-x86_64"
+      sha256 "02324067572bfe045395f0189e118725e227a74fa1ba564b760a2eedb57b8a03"
     end
     on_arm do
       url "https://github.com/slate-language/slate/releases/download/v#{version}/slate-desktop-#{version}-linux-arm64.tar.gz"
-      sha256 "PENDING-slate-desktop-linux-arm64"
+      sha256 "241949b80ff4a603b2f5751a9a7c833a9603f6dc42b0ee214c40d1661920a2ae"
     end
   end
 
