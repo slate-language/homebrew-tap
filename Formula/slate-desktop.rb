@@ -4,28 +4,51 @@ class SlateDesktop < Formula
   version "0.1.11"
   license "ISC"
 
-  # macOS on Apple silicon only. The desktop edition is slate built with the `desktop`
-  # feature list -- the default features plus `webview` -- and its binary is still called
-  # `slate`, so it and the `slate` formula cannot both be installed. Linux desktop
-  # tarballs are not built yet: they need libwebview plus GTK 3 and WebKitGTK 4.1 on the
-  # runner, which the Linux release workflow does not install.
+  # The desktop edition is slate built with the `desktop` feature list -- the default
+  # features plus `webview` -- and its binary is still called `slate`, so it and the
+  # `slate` formula cannot both be installed.
   on_macos do
     on_arm do
       url "https://github.com/slate-language/slate/releases/download/v#{version}/slate-desktop-#{version}-darwin-arm64.tar.gz"
       sha256 "789efa2576299170034d53a03838a610c950b11ee226d48245c775da2559dc80"
     end
+
+    # The census (`otool -L slate`) is the standard edition's two system lines plus
+    # exactly one: /opt/homebrew/opt/webview/lib/libwebview.0.12.dylib. WebKit is
+    # libwebview's own load command, not slate's. Re-read it off the shipped binary at
+    # each release.
+    depends_on "sysl-lang/tap/webview"
   end
 
-  # The census (`otool -L slate`) is the standard edition's two system lines plus exactly
-  # one: /opt/homebrew/opt/webview/lib/libwebview.0.12.dylib. WebKit is libwebview's own
-  # load command, not slate's. Re-read it off the shipped binary at each release.
-  depends_on "sysl-lang/tap/webview"
+  # On Linux libwebview is linked in from its archive, and GTK 3 and WebKitGTK 4.1 are the
+  # distribution's, linked dynamically by decision: a browser engine is the system's, not
+  # a thing to carry. So there is no `depends_on` here, and the machine needs
+  # `libgtk-3-0` and `libwebkit2gtk-4.1-0` (see caveats).
+  on_linux do
+    on_intel do
+      url "https://github.com/slate-language/slate/releases/download/v#{version}/slate-desktop-#{version}-linux-x86_64.tar.gz"
+      sha256 "PENDING-slate-desktop-linux-x86_64"
+    end
+    on_arm do
+      url "https://github.com/slate-language/slate/releases/download/v#{version}/slate-desktop-#{version}-linux-arm64.tar.gz"
+      sha256 "PENDING-slate-desktop-linux-arm64"
+    end
+  end
 
   conflicts_with "slate", because: "both install bin/slate"
 
   def install
     # Naming the binary, never `prefix.install Dir["*"]` -- see `slate.rb` for why.
     bin.install Dir["slate", "bin/slate"].first
+  end
+
+  def caveats
+    on_linux do
+      <<~EOS
+        The desktop edition draws its windows with the system's GTK 3 and WebKitGTK 4.1:
+          sudo apt-get install libgtk-3-0 libwebkit2gtk-4.1-0
+      EOS
+    end
   end
 
   # A SMOKE TEST, and it must never open a window: a `brew test` shell is not at the
