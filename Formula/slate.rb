@@ -1,10 +1,10 @@
 class Slate < Formula
   desc "Small indentation-structured, garbage-collected language, written in sysl"
   homepage "https://github.com/slate-language/slate"
-  version "0.1.15"
+  version "0.1.16"
   license "ISC"
 
-  # macOS on Apple silicon only. Linux is not a release platform until 1.0.0; until
+  # macOS on Apple silicon only. Linux is not a release platform until 0.2.0; until
   # then it, and everything else, builds from source, which is a clone and one
   # `sysl build .`.
   depends_on :macos
@@ -12,7 +12,7 @@ class Slate < Formula
   on_macos do
     on_arm do
       url "https://github.com/slate-language/slate/releases/download/v#{version}/slate-#{version}-darwin-arm64.tar.gz"
-      sha256 "d579418d64dc0521062f4b453b864f0233b16e9b4d6f70290cd1360138e36f31"
+      sha256 "6e5f0fc703f0bfc255bcdc7cda31fe9d083a6e9d4362483ad9793a337bee73f9"
     end
   end
 
