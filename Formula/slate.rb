@@ -1,32 +1,22 @@
 class Slate < Formula
   desc "Small indentation-structured, garbage-collected language, written in sysl"
   homepage "https://github.com/slate-language/slate"
-  version "0.1.14"
+  version "0.1.15"
   license "ISC"
 
-  # macOS on Apple silicon, and Linux on both x86_64 and arm64 -- built on Ubuntu
-  # runners by `.github/workflows/release-linux.yml` since sysl does not
-  # cross-compile. Everywhere else, build from source, which is a clone and one
+  # macOS on Apple silicon only. Linux is not a release platform until 1.0.0; until
+  # then it, and everything else, builds from source, which is a clone and one
   # `sysl build .`.
+  depends_on :macos
+
   on_macos do
     on_arm do
       url "https://github.com/slate-language/slate/releases/download/v#{version}/slate-#{version}-darwin-arm64.tar.gz"
-      sha256 "b85dabf835f84649a6a6782178a7d588905b264d2028f6916118977342a9e73a"
+      sha256 "d579418d64dc0521062f4b453b864f0233b16e9b4d6f70290cd1360138e36f31"
     end
   end
 
-  on_linux do
-    on_intel do
-      url "https://github.com/slate-language/slate/releases/download/v#{version}/slate-#{version}-linux-x86_64.tar.gz"
-      sha256 "d1dbafa116babfa5981dabf8c5763b77c60c50d405d806dc33fc96a8f8fd5915"
-    end
-    on_arm do
-      url "https://github.com/slate-language/slate/releases/download/v#{version}/slate-#{version}-linux-arm64.tar.gz"
-      sha256 "9b4c8ed95a7150d8121a945ec89a6558091c11aa048217ed96a0417bb525198c"
-    end
-  end
-
-  # No `depends_on` at all, and the census is `otool -L slate`: since 0.1.7 every
+  # No library `depends_on` at all, and the census is `otool -L slate`: since 0.1.7 every
   # library that has an archive is linked statically, so the binary names only
   # /usr/lib/libSystem.B.dylib and /usr/lib/libsqlite3.dylib, neither of them
   # Homebrew's. A library added later that has no archive comes back as a dylib line

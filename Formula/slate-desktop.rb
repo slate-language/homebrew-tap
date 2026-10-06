@@ -1,16 +1,19 @@
 class SlateDesktop < Formula
   desc "Small indentation-structured, garbage-collected language, desktop edition (adds slate:window)"
   homepage "https://github.com/slate-language/slate"
-  version "0.1.14"
+  version "0.1.15"
   license "ISC"
 
   # The desktop edition is slate built with the `desktop` feature list -- the default
   # features plus `webview` -- and its binary is still called `slate`, so it and the
-  # `slate` formula cannot both be installed.
+  # `slate` formula cannot both be installed. macOS on Apple silicon only: Linux is not
+  # a release platform until 1.0.0.
+  depends_on :macos
+
   on_macos do
     on_arm do
       url "https://github.com/slate-language/slate/releases/download/v#{version}/slate-desktop-#{version}-darwin-arm64.tar.gz"
-      sha256 "7462014f2c3d6ead45b224a1cbd761b7f76dcc93e6eaa8eb9a2fd94d2681559d"
+      sha256 "42344fdc44924bf1e1157c22a21904a01def4fcc3b41357d912b9cdcc4883f42"
     end
 
     # The census (`otool -L slate`) is the standard edition's two system lines plus
@@ -20,35 +23,11 @@ class SlateDesktop < Formula
     depends_on "sysl-lang/tap/webview"
   end
 
-  # On Linux libwebview is linked in from its archive, and GTK 3 and WebKitGTK 4.1 are the
-  # distribution's, linked dynamically by decision: a browser engine is the system's, not
-  # a thing to carry. So there is no `depends_on` here, and the machine needs
-  # `libgtk-3-0` and `libwebkit2gtk-4.1-0` (see caveats).
-  on_linux do
-    on_intel do
-      url "https://github.com/slate-language/slate/releases/download/v#{version}/slate-desktop-#{version}-linux-x86_64.tar.gz"
-      sha256 "7c35dad66429ad2e0e251095bb4c66a68f80cbeced3b737000d54b4129f84f00"
-    end
-    on_arm do
-      url "https://github.com/slate-language/slate/releases/download/v#{version}/slate-desktop-#{version}-linux-arm64.tar.gz"
-      sha256 "18fdcacd1b839589d273da602984fe3b9072449cc4ecf78ebe19ceeb8df516f0"
-    end
-  end
-
   conflicts_with "slate", because: "both install bin/slate"
 
   def install
     # Naming the binary, never `prefix.install Dir["*"]` -- see `slate.rb` for why.
     bin.install Dir["slate", "bin/slate"].first
-  end
-
-  def caveats
-    on_linux do
-      <<~EOS
-        The desktop edition draws its windows with the system's GTK 3 and WebKitGTK 4.1:
-          sudo apt-get install libgtk-3-0 libwebkit2gtk-4.1-0
-      EOS
-    end
   end
 
   # A SMOKE TEST, and it must never open a window: a `brew test` shell is not at the
