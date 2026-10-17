@@ -1,7 +1,7 @@
 class SlateDesktop < Formula
   desc "Small indentation-structured, garbage-collected language, desktop edition (adds slate:window)"
   homepage "https://github.com/slate-language/slate"
-  version "0.1.28"
+  version "0.1.29"
   license "ISC"
 
   # The desktop edition is slate built with the `desktop` feature list -- the default
@@ -13,7 +13,7 @@ class SlateDesktop < Formula
   on_macos do
     on_arm do
       url "https://github.com/slate-language/slate/releases/download/v#{version}/slate-desktop-#{version}-darwin-arm64.tar.gz"
-      sha256 "ca311f1bea1288ff8639caeefd4adbcdfbc7b9321c6ccff40d78a9025435c631"
+      sha256 "8f72894a2d432a0085395f943a40573a616f62b4c3f9ac31f5adb94587afe7a7"
     end
 
     # The census (`otool -L slate`) is the standard edition's two system lines plus
