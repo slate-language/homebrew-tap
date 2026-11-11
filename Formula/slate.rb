@@ -1,7 +1,7 @@
 class Slate < Formula
   desc "Small indentation-structured, garbage-collected language, written in sysl"
   homepage "https://github.com/slate-language/slate"
-  version "0.1.36"
+  version "0.1.37"
   license "ISC"
 
   # macOS on Apple silicon only. Linux is not a release platform until 0.2.0; until
@@ -12,7 +12,7 @@ class Slate < Formula
   on_macos do
     on_arm do
       url "https://github.com/slate-language/slate/releases/download/v#{version}/slate-#{version}-darwin-arm64.tar.gz"
-      sha256 "b73fb01c3b9faaea10b3ad15f59469cf3333cae4f45bc66effe097a1a0fddda2"
+      sha256 "9fd9b829ca4b8f1c7ccb60c5cefbfead83b07b1f228a0f2428916c756571ffbf"
     end
   end
 
