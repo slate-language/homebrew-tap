@@ -1,19 +1,19 @@
 class SlateDesktop < Formula
   desc "Small indentation-structured, garbage-collected language, desktop edition (adds slate:window)"
   homepage "https://github.com/slate-language/slate"
-  version "0.1.37"
+  version "0.2.0"
   license "ISC"
 
   # The desktop edition is slate built with the `desktop` feature list -- the default
   # features plus `webview` -- and its binary is still called `slate`, so it and the
   # `slate` formula cannot both be installed. macOS on Apple silicon only: Linux is not
-  # a release platform until 0.2.0.
+  # a release platform until sysl publishes Linux builds.
   depends_on :macos
 
   on_macos do
     on_arm do
       url "https://github.com/slate-language/slate/releases/download/v#{version}/slate-desktop-#{version}-darwin-arm64.tar.gz"
-      sha256 "def3efa27907c7c470e8f72325261c4ffeba97def6f059b121760cc0264cfa2b"
+      sha256 "fb72baec36c8f26e227354f6659ff485deec7cd0476dcff15c6272729495e0f4"
     end
 
     # The census (`otool -L slate`) is the standard edition's two system lines plus
